@@ -46,6 +46,7 @@
 #endif
 
 #include "compint.h"
+#include "compositeext.h"
 
 static void
 compScreenUpdate(ScreenPtr pScreen)
@@ -409,6 +410,11 @@ compRedirectSubwindows(ClientPtr pClient, WindowPtr pWin, int update)
         pWin->inhibitBGPaint = TRUE;
     }
     return Success;
+}
+
+int CompositeRedirectSubwindows (WindowPtr pWin, int update)
+{
+    return compRedirectSubwindows (serverClient, pWin, update);
 }
 
 /*

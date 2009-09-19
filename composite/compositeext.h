@@ -34,6 +34,8 @@
 extern _X_EXPORT Bool CompositeRegisterAlternateVisuals(ScreenPtr pScreen,
                                                         VisualID * vids,
                                                         int nVisuals);
+extern _X_EXPORT int CompositeRedirectSubwindows(WindowPtr pWin,
+						 int update);
 
 extern _X_EXPORT RESTYPE CompositeClientWindowType;
 
