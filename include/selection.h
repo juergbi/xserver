@@ -71,6 +71,9 @@ typedef struct _Selection {
 extern _X_EXPORT int dixLookupSelection(Selection ** result, Atom name,
                                         ClientPtr client, Mask access_mode);
 
+extern _X_EXPORT int AddSelection(Selection ** result,
+                                  Atom name, ClientPtr client);
+
 extern _X_EXPORT Selection *CurrentSelections;
 
 extern _X_EXPORT CallbackListPtr SelectionCallback;

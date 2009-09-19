@@ -86,6 +86,33 @@ dixLookupSelection(Selection ** result, Atom selectionName,
     return rc;
 }
 
+int
+AddSelection(Selection ** result, Atom name, ClientPtr client)
+{
+    Selection *pSel;
+    int rc;
+
+    pSel = dixAllocateObjectWithPrivates(Selection, PRIVATE_SELECTION);
+    if (!pSel)
+        return BadAlloc;
+
+    pSel->selection = name;
+
+    /* security creation/labeling check */
+    rc = XaceHookSelectionAccess(client, &pSel,
+                                 DixCreateAccess | DixSetAttrAccess);
+    if (rc != Success) {
+        xfree(pSel);
+        return rc;
+    }
+
+    pSel->next = CurrentSelections;
+    CurrentSelections = pSel;
+    *result = pSel;
+
+    return Success;
+}
+
 void
 InitSelections(void)
 {
@@ -194,22 +221,7 @@ ProcSetSelectionOwner(ClientPtr client)
         /*
          * It doesn't exist, so add it...
          */
-        pSel = dixAllocateObjectWithPrivates(Selection, PRIVATE_SELECTION);
-        if (!pSel)
-            return BadAlloc;
-
-        pSel->selection = stuff->selection;
-
-        /* security creation/labeling check */
-        rc = XaceHookSelectionAccess(client, &pSel,
-                                     DixCreateAccess | DixSetAttrAccess);
-        if (rc != Success) {
-            free(pSel);
-            return rc;
-        }
-
-        pSel->next = CurrentSelections;
-        CurrentSelections = pSel;
+        rc = AddSelection(&pSel, stuff->selection, client);
     }
     else
         return rc;
