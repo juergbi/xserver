@@ -162,6 +162,17 @@ extern void
  ProcessOtherEvent(InternalEvent * /* ev */ ,
                    DeviceIntPtr /* other */ );
 
+extern _X_EXPORT void
+SetDeviceRedirectWindow(DeviceIntPtr /* dev */ ,
+                        WindowPtr /* window */ );
+
+extern void
+ DeviceFocusEvent(DeviceIntPtr /* dev */ ,
+                  int /* type */ ,
+                  int /* mode */ ,
+                  int /* detail */ ,
+                  WindowPtr /* pWin */ );
+
 extern int
  CheckGrabValues(ClientPtr /* client */ ,
                  GrabParameters * /* param */ );

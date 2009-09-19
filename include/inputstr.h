@@ -246,6 +246,8 @@ typedef struct _SpriteRec {
     ScreenPtr pEnqueueScreen;
     ScreenPtr pDequeueScreen;
 
+    WindowPtr redirectWindow;
+
 } SpriteRec;
 
 typedef struct _KeyClassRec {

@@ -2020,6 +2020,15 @@ DeliverTouchEvents(DeviceIntPtr dev, TouchPointInfoPtr ti,
     }
 }
 
+void
+SetDeviceRedirectWindow(DeviceIntPtr dev, WindowPtr window)
+{
+    SpritePtr pSprite = dev->spriteInfo->sprite;
+
+    pSprite->redirectWindow = window;
+    CheckMotion(NULL, dev->u.master);
+}
+
 int
 InitProximityClassDeviceStruct(DeviceIntPtr dev)
 {
