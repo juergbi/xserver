@@ -1455,6 +1455,18 @@ ddxProcessArgument(int argc, char **argv, int i)
         return 1;
     }
 
+  if (!strcmp(argv[i], "-wayland"))
+  {
+    xorgWayland = TRUE;
+    return 1;
+  }
+
+  if (!strcmp(argv[i], "-rootless"))
+  {
+    xorgRootless = TRUE;
+    return 1;
+  }
+
     /* OS-specific processing */
     return xf86ProcessArgument(argc, argv, i);
 }
