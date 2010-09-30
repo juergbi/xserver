@@ -9,6 +9,10 @@ DRI2_SUBDIR = dri2
 DRI2_LIB = dri2/libdri2.la
 endif
 
+if HOSTED
+HOSTED_SUBDIR = hosted
+endif
+
 if XF86UTILS
 XF86UTILS_SUBDIR = utils
 endif
@@ -25,15 +29,18 @@ if INT10MODULE
 INT10_SUBDIR = int10
 endif
 
-SUBDIRS = common ddc x86emu $(INT10_SUBDIR) os-support parser \
-	  ramdac $(VGAHW_SUBDIR) loader modes $(DRI_SUBDIR) \
-	  $(DRI2_SUBDIR) . $(VBE_SUBDIR) i2c dixmods \
-	  fbdevhw shadowfb exa $(XF86UTILS_SUBDIR) doc man
+SUBDIRS = common ddc i2c x86emu $(INT10_SUBDIR) fbdevhw os-support parser \
+	  ramdac shadowfb $(VBE_SUBDIR) $(VGAHW_SUBDIR) \
+	  loader dixmods exa modes \
+	  $(DRI_SUBDIR) $(DRI2_SUBDIR) $(HOSTED_SUBDIR) $(XF86UTILS_SUBDIR) \
+	  doc man
 
-DIST_SUBDIRS = common ddc i2c x86emu int10 fbdevhw os-support \
-               parser ramdac shadowfb vbe vgahw \
-               loader dixmods dri dri2 exa modes \
-	       utils doc man
+# FIXME: DIST_SUBDIRS is already set to that value anyway
+DIST_SUBDIRS = common ddc i2c x86emu int10 fbdevhw os-support parser \
+               ramdac shadowfb vbe vgahw \
+               loader dixmods exa modes \
+	       dri dri2 hosted utils \
+	       doc man
 
 bin_PROGRAMS = Xorg
 nodist_Xorg_SOURCES = sdksyms.c

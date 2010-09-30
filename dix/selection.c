@@ -102,7 +102,7 @@ AddSelection(Selection ** result, Atom name, ClientPtr client)
     rc = XaceHookSelectionAccess(client, &pSel,
                                  DixCreateAccess | DixSetAttrAccess);
     if (rc != Success) {
-        xfree(pSel);
+        dixFreeObjectWithPrivates(pSel, PRIVATE_SELECTION);
         return rc;
     }
 
