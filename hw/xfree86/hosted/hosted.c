@@ -27,22 +27,20 @@
 #include "xorg-config.h"
 #endif
 
-#include <linux/input.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <wayland-util.h>
+#include <wayland-client.h>
+#include <X11/extensions/compositeproto.h>
 
+#include <compositeext.h>
+#include <selection.h>
 #include <extinit.h>
 #include <input.h>
 #include <inputstr.h>
 #include <exevents.h>
 #include <xkbsrv.h>
-#include <wayland-util.h>
-#include <wayland-client.h>
-#include <X11/extensions/compositeproto.h>
-#include <compositeext.h>
-#include <selection.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <fcntl.h>
-
 #include <xf86Xinput.h>
 #include <xf86Crtc.h>
 #include <xf86str.h>
@@ -50,6 +48,7 @@
 #include <xf86drm.h>
 
 #include "hosted.h"
+#include "hosted-private.h"
 
 /*
  * TODO:
@@ -59,63 +58,6 @@
 
 static DevPrivateKeyRec hosted_window_private_key;
 static DevPrivateKeyRec hosted_screen_private_key;
-
-struct hosted_window {
-    struct hosted_screen	*hosted_screen;
-    struct wl_surface		*surface;
-    struct wl_visual		*visual;
-    WindowPtr			 window;
-    DamagePtr			 damage;
-    struct list			 link;
-};
-
-struct hosted_screen {
-    struct hosted_driver	*driver;
-    ScreenPtr			 screen;
-    ScrnInfoPtr			 scrninfo;
-    int				 drm_fd;
-    int				 wayland_fd;
-    struct wl_display		*display;
-    struct wl_compositor	*compositor;
-    struct wl_drm		*drm;
-    uint32_t			 mask;
-    uint32_t			 flags;
-    char			*device_name;
-    uint32_t			 authenticated;
-    struct list			 input_device_list;
-    struct list			 damage_window_list;
-
-    /* FIXME: Hack. */
-    int32_t			 width, height;
-    int32_t			 root_x, root_y;
-
-    CreateWindowProcPtr		 CreateWindow;
-    RealizeWindowProcPtr	 RealizeWindow;
-    UnrealizeWindowProcPtr	 UnrealizeWindow;
-    SetWindowPixmapProcPtr	 SetWindowPixmap;
-    MoveWindowProcPtr		 MoveWindow;
-};
-
-struct hosted_output {
-    struct wl_output		*output;
-    struct hosted_screen	*hosted_screen;
-    int32_t			 x, y, width, height;
-    xf86Monitor			 monitor;
-};
-
-#define MODIFIER_META 0x01
-
-struct hosted_input_device {
-    DeviceIntPtr		 pointer;
-    DeviceIntPtr		 keyboard;
-    struct hosted_screen	*hosted_screen;
-    struct wl_input_device	*input_device;
-    int				 grab;
-    struct hosted_window	*focus_window;
-    int32_t			 grab_x, grab_y;
-    uint32_t			 modifiers;
-    struct list			 link;
-};
 
 static int
 input_proc(DeviceIntPtr device, int event)
@@ -230,171 +172,6 @@ input_init_keyboard(struct hosted_input_device *d,
 
     return Success;
 }
-
-static int
-source_update(uint32_t mask, void *data)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    hosted_screen->mask = mask;
-
-    return 0;
-}
-
-static void
-wakeup_handler(pointer data, int err, pointer read_mask)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    if (err >= 0 && FD_ISSET(hosted_screen->wayland_fd, (fd_set *) read_mask))
-	wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
-}
-
-static void
-block_handler(pointer data, struct timeval **tv, pointer read_mask)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    /* The X servers "main loop" doesn't let us select for
-     * writable, so let's just do a blocking write here. */
-
-    while (hosted_screen->mask & WL_DISPLAY_WRITABLE)
-	wl_display_iterate(hosted_screen->display, WL_DISPLAY_WRITABLE);
-}
-
-static void
-input_device_handle_motion(void *data, struct wl_input_device *input_device,
-			   uint32_t time,
-			   int32_t x, int32_t y, int32_t sx, int32_t sy)
-{
-    struct hosted_input_device *hosted_input_device = data;
-    int32_t dx, dy;
-
-    dx = hosted_input_device->focus_window->window->drawable.x;
-    dy = hosted_input_device->focus_window->window->drawable.y;
-    xf86PostMotionEvent(hosted_input_device->pointer,
-			TRUE, 0, 2, sx + dx, sy + dy);
-}
-
-static void
-input_device_handle_button(void *data, struct wl_input_device *input_device,
-			   uint32_t time, uint32_t button, uint32_t state)
-{
-    struct hosted_input_device *hosted_input_device = data;
-    int index;
-
-    switch (button) {
-    case BTN_MIDDLE:
-	index = 2;
-	break;
-    case BTN_RIGHT:
-	index = 3;
-	break;
-    default:
-	index = button - BTN_LEFT + 1;
-	break;
-    }
-
-    xf86PostButtonEvent(hosted_input_device->pointer,
-			TRUE, index, state, 0, 0);
-}
-
-static void
-input_device_handle_key(void *data, struct wl_input_device *input_device,
-			uint32_t time, uint32_t key, uint32_t state)
-{
-    struct hosted_input_device *hosted_input_device = data;
-    uint32_t modifier;
-
-    switch (key) {
-    case KEY_LEFTMETA:
-    case KEY_RIGHTMETA:
-	modifier = MODIFIER_META;
-	break;
-    default:
-	modifier = 0;
-	break;
-    }
-
-    if (state)
-	hosted_input_device->modifiers |= modifier;
-    else
-	hosted_input_device->modifiers &= ~modifier;
-
-    xf86PostKeyboardEvent(hosted_input_device->keyboard, key + 8, state);
-}
-
-static void
-input_device_handle_pointer_focus(void *data,
-				  struct wl_input_device *input_device,
-				  uint32_t time,
-				  struct wl_surface *surface,
-				  int32_t x, int32_t y, int32_t sx, int32_t sy)
-
-{
-    struct hosted_input_device *hosted_input_device = data;
-
-    if (surface)
-	hosted_input_device->focus_window = wl_surface_get_user_data(surface);
-    else
-	hosted_input_device->focus_window = NULL;
-
-    if (hosted_input_device->focus_window)
-	SetDeviceRedirectWindow(hosted_input_device->pointer,
-				hosted_input_device->focus_window->window);
-    else
-	SetDeviceRedirectWindow(hosted_input_device->pointer,
-				PointerRootWin);
-}
-
-static void
-input_device_handle_keyboard_focus(void *data,
-				   struct wl_input_device *input_device,
-				   uint32_t time,
-				   struct wl_surface *surface,
-				   struct wl_array *keys)
-{
-    struct hosted_input_device *d = data;
-    uint32_t *k, *end;
-
-    end = (uint32_t *) ((char *) keys->data + keys->size);
-    for (k = keys->data; k < end; k++) {
-	switch (*k) {
-	case KEY_LEFTMETA:
-	case KEY_RIGHTMETA:
-	    d->modifiers |= MODIFIER_META;
-	    break;
-	}
-    }
-}
-
-static const struct wl_input_device_listener input_device_listener = {
-    input_device_handle_motion,
-    input_device_handle_button,
-    input_device_handle_key,
-    input_device_handle_pointer_focus,
-    input_device_handle_keyboard_focus,
-};
-
-static void
-display_handle_geometry(void *data,
-			struct wl_output *output,
-			int32_t width, int32_t height)
-{
-    struct hosted_output *hosted_output = data;
-
-    hosted_output->x = 0;
-    hosted_output->y = 0;
-    hosted_output->width = width;
-    hosted_output->height = height;
-
-    hosted_output->hosted_screen->width = width;
-    hosted_output->hosted_screen->height = height;
-}
-
-static const struct wl_output_listener output_listener = {
-	display_handle_geometry,
-};
 
 static void
 crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
@@ -522,8 +299,8 @@ static const xf86OutputFuncsRec output_funcs = {
     .destroy	= output_destroy
 };
 
-static void
-create_output(struct hosted_screen *hosted_screen, uint32_t id)
+struct hosted_output *
+hosted_output_create(struct hosted_screen *hosted_screen)
 {
     struct hosted_output *hosted_output;
     xf86OutputPtr xf86output;
@@ -532,13 +309,9 @@ create_output(struct hosted_screen *hosted_screen, uint32_t id)
     hosted_output = malloc(sizeof *hosted_output);
     if (hosted_output == NULL) {
 	ErrorF("create_output ENOMEM");
-	return;
+	return NULL;
     }
     hosted_output->hosted_screen = hosted_screen;
-    hosted_output->output = wl_output_create (hosted_screen->display, id);
-
-    wl_output_add_listener(hosted_output->output,
-			   &output_listener, hosted_output);
 
     xf86output = xf86OutputCreate(hosted_screen->scrninfo,
 				  &output_funcs, "HOSTED-1");
@@ -552,26 +325,26 @@ create_output(struct hosted_screen *hosted_screen, uint32_t id)
     xf86crtc = xf86CrtcCreate(hosted_screen->scrninfo, &crtc_funcs);
     xf86crtc->driver_private = hosted_output;
 
-    return;
+    return hosted_output;
 }
 
-static void
-create_input_device(struct hosted_screen *hosted_screen, uint32_t id)
+struct hosted_input_device *
+hosted_input_device_create(struct hosted_screen *hosted_screen)
 {
     struct hosted_input_device *hosted_input_device;
 
     hosted_input_device = malloc(sizeof *hosted_input_device);
     if (hosted_input_device == NULL) {
 	ErrorF("create_output enomem");
-	return;
+	return NULL;
     }
 
     memset(hosted_input_device, 0, sizeof *hosted_input_device);
-    hosted_input_device->input_device =
-	wl_input_device_create (hosted_screen->display, id);
     hosted_input_device->hosted_screen = hosted_screen;
 
     list_add(&hosted_input_device->link, &hosted_screen->input_device_list);
+
+    return hosted_input_device;
 }
 
 static void
@@ -583,55 +356,6 @@ add_input_devices(struct hosted_screen *hosted_screen)
 			&hosted_screen->input_device_list, link) {
 	input_init_pointer(hosted_input_device, hosted_screen);
 	input_init_keyboard(hosted_input_device, hosted_screen);
-	wl_input_device_add_listener(hosted_input_device->input_device,
-				     &input_device_listener,
-				     hosted_input_device);
-    }
-}
-
-static void
-drm_handle_device (void *data, struct wl_drm *drm, const char *device)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    hosted_screen->device_name = strdup (device);
-}
-
-static void
-drm_handle_authenticated (void *data, struct wl_drm *drm)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    hosted_screen->authenticated = 1;
-}
-
-static const struct wl_drm_listener drm_listener =
-{
-  drm_handle_device,
-  drm_handle_authenticated
-};
-
-static void
-global_handler(struct wl_display *display,
-	       uint32_t id,
-	       const char *interface,
-	       uint32_t version,
-	       void *data)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    if (strcmp (interface, "compositor") == 0) {
-	hosted_screen->compositor =
-	    wl_compositor_create (hosted_screen->display, id);
-    } else if (strcmp (interface, "drm") == 0) {
-	hosted_screen->drm =
-	    wl_drm_create (hosted_screen->display, id);
-	wl_drm_add_listener (hosted_screen->drm,
-			     &drm_listener, hosted_screen);
-    } else if (strcmp (interface, "output") == 0) {
-	create_output(hosted_screen, id);
-    } else if (strcmp (interface, "input_device") == 0) {
-	create_input_device(hosted_screen, id);
     }
 }
 
@@ -650,8 +374,6 @@ resize(ScrnInfoPtr scrn, int width, int height)
 static const xf86CrtcConfigFuncsRec config_funcs = {
     resize
 };
-
-static const char socket_name[] = "\0wayland";
 
 static void free_pixmap(void *data)
 {
@@ -675,7 +397,7 @@ hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 
     buffer = wl_drm_create_buffer(hosted_screen->drm,
 				  name,
-				  pixmap->drawable.width,
+				   pixmap->drawable.width,
 				  pixmap->drawable.height,
 				  pixmap->devKind,
 				  hosted_window->visual);
@@ -931,7 +653,6 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
 		       uint32_t flags, struct hosted_driver *driver)
 {
     struct hosted_screen *hosted_screen;
-    uint32_t magic;
 
     /* FIXME: check hosted enabled flags and fullscreen/rootless flags
      * here */
@@ -948,47 +669,13 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
     hosted_screen->scrninfo = scrninfo;
     hosted_screen->driver = driver;
     hosted_screen->flags = flags;
-    hosted_screen->display =
-	wl_display_create(socket_name, sizeof socket_name);
-    if (hosted_screen->display == NULL) {
-	ErrorF("wl_display_create failed\n");
-	return NULL;
-    }
 
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
 
-    /* Set up listener so we'll catch all events. */
-    wl_display_add_global_listener(hosted_screen->display,
-				   global_handler, hosted_screen);
-
-    /* Process connection events. */
-    wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
-
-    hosted_screen->wayland_fd =
-	wl_display_get_fd(hosted_screen->display,
-			  source_update, hosted_screen);
-
-    AddGeneralSocket(hosted_screen->wayland_fd);
-    RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler,
-				   hosted_screen);
-
-    hosted_screen->drm_fd = open(hosted_screen->device_name, O_RDWR);
-    if (hosted_screen->drm_fd < 0) {
-	ErrorF("failed to open the drm fd\n");
+    if (wayland_screen_init(hosted_screen) != Success)
 	return NULL;
-    }
-
-    if (drmGetMagic(hosted_screen->drm_fd, &magic)) {
-	ErrorF("failed to get drm magic");
-	return NULL;
-    }
-
-    wl_drm_authenticate(hosted_screen->drm, magic);
-    wl_display_iterate(hosted_screen->display, WL_DISPLAY_WRITABLE);
-    while (!hosted_screen->authenticated)
-	wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
 
     xf86InitialConfiguration(scrninfo, TRUE);
 
@@ -1023,6 +710,7 @@ int hosted_screen_authenticate(struct hosted_screen *hosted_screen,
 void hosted_screen_post_damage(struct hosted_screen *hosted_screen)
 {
     struct hosted_window *hosted_window;
+    struct hosted_backend *backend = hosted_screen->backend;
     RegionPtr region;
     BoxPtr box;
     int count, i;
@@ -1034,20 +722,13 @@ void hosted_screen_post_damage(struct hosted_screen *hosted_screen)
 	count = RegionNumRects(region);
 	for (i = 0; i < count; i++) {
 	    box = &RegionRects(region)[i];
-	    wl_surface_damage(hosted_window->surface,
-			      box->x1, box->y1,
-			      box->x2 - box->x1, box->y2 - box->y1);
+	    backend->flush(hosted_window, box);
 	}
 	DamageEmpty(hosted_window->damage);
     }
 
     list_init(&hosted_screen->damage_window_list);
-
-    while (hosted_screen->mask & WL_DISPLAY_WRITABLE)
-	wl_display_iterate(hosted_screen->display,
-			   WL_DISPLAY_WRITABLE);
 }
-
 
 static pointer
 hosted_setup(pointer module, pointer opts, int *errmaj, int *errmin)

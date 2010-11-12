@@ -15,7 +15,10 @@ libhosted_la_CFLAGS = \
 
 libhosted_la_LDFLAGS = -module -avoid-version @LIBDRM_LIBS@ -lwayland-client
 libhosted_ladir = $(moduledir)/extensions
-libhosted_la_SOURCES = \
-	hosted.c
+libhosted_la_SOURCES =				\
+	hosted.c				\
+	hosted-private.h			\
+	wayland.c				\
+	x11.c
 
 sdk_HEADERS = hosted.h
