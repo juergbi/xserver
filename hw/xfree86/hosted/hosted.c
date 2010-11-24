@@ -45,6 +45,7 @@
 #include <xf86Crtc.h>
 #include <xf86str.h>
 #include <windowstr.h>
+#include <xf86Priv.h>
 #include <xf86drm.h>
 
 #include "hosted.h"
@@ -669,6 +670,11 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
     hosted_screen->scrninfo = scrninfo;
     hosted_screen->driver = driver;
     hosted_screen->flags = flags;
+
+    if (xorgRootless) {
+	ErrorF("rootless flag!\n");
+	hosted_screen->flags |= HOSTED_FLAGS_ROOTLESS;
+    }
 
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
