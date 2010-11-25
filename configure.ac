@@ -1011,7 +1011,7 @@ fi
 HOSTED=yes
 AM_CONDITIONAL(HOSTED, [test "x$HOSTED" = xyes])
 if test "x$HOSTED" = xyes; then
-	AC_DEFINE(HOSTED, 1, [Support hosted mode])
+	AC_DEFINE(XORG_HOSTED, 1, [Support hosted mode])
 	REQUIRED_MODULES="$REQUIRED_MODULES wayland-client"
 fi
 

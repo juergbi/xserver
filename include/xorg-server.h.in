@@ -212,4 +212,7 @@
 #define _XSERVER64 1
 #endif
 
+/* Building Xorg server. */
+#undef XORG_HOSTED
+
 #endif /* _XORG_SERVER_H_ */
