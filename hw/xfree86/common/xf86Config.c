@@ -863,7 +863,7 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     xf86Msg(from, "%sutomatically adding GPU devices\n",
             xf86Info.autoAddGPU ? "A" : "Not a");
 
-    if (xorgWayland) {
+    if (xorgHosted) {
             xf86Info.autoAddDevices = FALSE;
             xf86Info.autoEnableDevices = FALSE;
     }

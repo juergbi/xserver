@@ -1455,9 +1455,9 @@ ddxProcessArgument(int argc, char **argv, int i)
         return 1;
     }
 
-  if (!strcmp(argv[i], "-wayland"))
+  if (!strcmp(argv[i], "-hosted"))
   {
-    xorgWayland = TRUE;
+    xorgHosted = TRUE;
     return 1;
   }
 

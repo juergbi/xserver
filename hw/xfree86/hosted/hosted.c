@@ -655,9 +655,6 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
 {
     struct hosted_screen *hosted_screen;
 
-    /* FIXME: check hosted enabled flags and fullscreen/rootless flags
-     * here */
-
     hosted_screen = malloc(sizeof *hosted_screen);
     if (hosted_screen == NULL) {
 	ErrorF("malloc failed\n");
@@ -671,10 +668,8 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
     hosted_screen->driver = driver;
     hosted_screen->flags = flags;
 
-    if (xorgRootless) {
-	ErrorF("rootless flag!\n");
+    if (xorgRootless)
 	hosted_screen->flags |= HOSTED_FLAGS_ROOTLESS;
-    }
 
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
