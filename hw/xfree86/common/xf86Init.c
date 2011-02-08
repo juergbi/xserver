@@ -548,6 +548,12 @@ InitOutput(ScreenInfo * pScreenInfo, int argc, char **argv)
                 xorgHWOpenConsole = TRUE;
         }
 
+    /* FIX<E: Better to delete drivers that require vt or hw if hosted. */
+    if (xorgHosted) {
+	xorgHWAccess = FALSE;
+	xorgHWOpenConsole = FALSE;
+    }
+
         if (xorgHWOpenConsole)
             xf86OpenConsole();
         else

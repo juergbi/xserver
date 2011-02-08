@@ -82,12 +82,13 @@ static const struct wl_drm_listener drm_listener =
 static void
 display_handle_geometry(void *data,
 			struct wl_output *output,
+			int32_t x, int32_t y,
 			int32_t width, int32_t height)
 {
     struct hosted_output *hosted_output = data;
 
-    hosted_output->x = 0;
-    hosted_output->y = 0;
+    hosted_output->x = x;
+    hosted_output->y = y;
     hosted_output->width = width;
     hosted_output->height = height;
 
@@ -118,6 +119,8 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
     struct hosted_input_device *hosted_input_device = data;
     int32_t dx, dy;
 
+    hosted_input_device->time = time;
+
     dx = hosted_input_device->focus_window->window->drawable.x;
     dy = hosted_input_device->focus_window->window->drawable.y;
     xf86PostMotionEvent(hosted_input_device->pointer,
@@ -130,6 +133,8 @@ input_device_handle_button(void *data, struct wl_input_device *input_device,
 {
     struct hosted_input_device *hosted_input_device = data;
     int index;
+
+    hosted_input_device->time = time;
 
     switch (button) {
     case BTN_MIDDLE:
@@ -153,6 +158,8 @@ input_device_handle_key(void *data, struct wl_input_device *input_device,
 {
     struct hosted_input_device *hosted_input_device = data;
     uint32_t modifier;
+
+    hosted_input_device->time = time;
 
     switch (key) {
     case KEY_LEFTMETA:
@@ -182,6 +189,8 @@ input_device_handle_pointer_focus(void *data,
 {
     struct hosted_input_device *hosted_input_device = data;
 
+    hosted_input_device->time = time;
+
     if (surface)
 	hosted_input_device->focus_window = wl_surface_get_user_data(surface);
     else
@@ -202,15 +211,17 @@ input_device_handle_keyboard_focus(void *data,
 				   struct wl_surface *surface,
 				   struct wl_array *keys)
 {
-    struct hosted_input_device *d = data;
+    struct hosted_input_device *hosted_input_device = data;
     uint32_t *k, *end;
+
+    hosted_input_device->time = time;
 
     end = (uint32_t *) ((char *) keys->data + keys->size);
     for (k = keys->data; k < end; k++) {
 	switch (*k) {
 	case KEY_LEFTMETA:
 	case KEY_RIGHTMETA:
-	    d->modifiers |= MODIFIER_META;
+	    hosted_input_device->modifiers |= MODIFIER_META;
 	    break;
 	}
     }
@@ -251,10 +262,11 @@ global_handler(struct wl_display *display,
 	hosted_screen->compositor =
 	    wl_compositor_create (hosted_screen->display, id);
     } else if (strcmp (interface, "drm") == 0) {
-	hosted_screen->drm =
-	    wl_drm_create (hosted_screen->display, id);
+	hosted_screen->drm = wl_drm_create (hosted_screen->display, id);
 	wl_drm_add_listener (hosted_screen->drm,
 			     &drm_listener, hosted_screen);
+    } else if (strcmp (interface, "shm") == 0) {
+	hosted_screen->shm = wl_shm_create (hosted_screen->display, id);
     } else if (strcmp (interface, "output") == 0) {
 	create_output(hosted_screen, id);
     } else if (strcmp (interface, "input_device") == 0) {
@@ -293,8 +305,6 @@ block_handler(pointer data, struct timeval **tv, pointer read_mask)
 	wl_display_iterate(hosted_screen->display, WL_DISPLAY_WRITABLE);
 }
 
-static const char socket_name[] = "\0wayland";
-
 int
 wayland_screen_init(struct hosted_screen *hosted_screen)
 {
@@ -303,7 +313,7 @@ wayland_screen_init(struct hosted_screen *hosted_screen)
     hosted_screen->backend = &wayland_backend;
 
     hosted_screen->display =
-	wl_display_create(socket_name, sizeof socket_name);
+	wl_display_connect(NULL);
     if (hosted_screen->display == NULL) {
 	ErrorF("wl_display_create failed\n");
 	return BadAlloc;

@@ -30,6 +30,8 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <sys/mman.h>
 #include <wayland-util.h>
 #include <wayland-client.h>
 #include <X11/extensions/compositeproto.h>
@@ -47,6 +49,7 @@
 #include <windowstr.h>
 #include <xf86Priv.h>
 #include <xf86drm.h>
+#include <mipointrst.h>
 
 #include "hosted.h"
 #include "hosted-private.h"
@@ -59,6 +62,8 @@
 
 static DevPrivateKeyRec hosted_window_private_key;
 static DevPrivateKeyRec hosted_screen_private_key;
+static DevPrivateKeyRec hosted_cursor_private_key;
+static DevPrivateKeyRec hosted_device_private_key;
 
 static int
 input_proc(DeviceIntPtr device, int event)
@@ -103,13 +108,14 @@ input_init_pointer(struct hosted_input_device *d, struct hosted_screen *screen)
 
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->pointer = device;
+    dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
 
     atom = MakeAtom(name, strlen(name), TRUE);
     AssignTypeAndName(device, atom, name);
 
     device->coreEvents = TRUE;
-    device->type = SLAVE;
-    device->spriteInfo->spriteOwner = FALSE;
+    device->type = MASTER_POINTER;
+    device->spriteInfo->spriteOwner = TRUE;
 
     labels[0] = MakeAtom("x", 1, TRUE);
     labels[1] = MakeAtom("y", 1, TRUE);
@@ -119,8 +125,10 @@ input_init_pointer(struct hosted_input_device *d, struct hosted_screen *screen)
 	return !Success;
 
     /* Valuators */
-    InitValuatorAxisStruct(device, labels[0], 0, min_x, max_x, 10000, 0, 10000);
-    InitValuatorAxisStruct(device, labels[1], 1, min_y, max_y, 10000, 0, 10000);
+    InitValuatorAxisStruct(device, 0, labels[0],
+			   min_x, max_x, 10000, 0, 10000, Absolute);
+    InitValuatorAxisStruct(device, 1, labels[1],
+			   min_y, max_y, 10000, 0, 10000, Absolute);
 
     if (!InitPtrFeedbackClassDeviceStruct(device, input_ptr_ctrl_proc))
 	return !Success;
@@ -142,23 +150,18 @@ input_init_keyboard(struct hosted_input_device *d,
     DeviceIntPtr device;
     CARD32 atom;
     char *name = "hosted";
-    KeySymsRec key_syms;
     XkbRMLVOSet rmlvo;
 
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->keyboard = device;
+    dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
 
     atom = MakeAtom(name, strlen(name), TRUE);
     AssignTypeAndName(device, atom, name);
 
     device->coreEvents = TRUE;
-    device->type = SLAVE;
+    device->type = MASTER_KEYBOARD;
     device->spriteInfo->spriteOwner = FALSE;
-
-    key_syms.map        = malloc(4 * 248 * sizeof(KeySym));
-    key_syms.mapWidth   = 4;
-    key_syms.minKeyCode = 8;
-    key_syms.maxKeyCode = 254;
 
     rmlvo.rules = "evdev";
     rmlvo.model = "evdev";
@@ -168,7 +171,6 @@ input_init_keyboard(struct hosted_input_device *d,
     if (!InitKeyboardDeviceStruct(device, &rmlvo, NULL, input_kbd_ctrl))
 	return !Success;
 
-    RegisterOtherDevice(device);
     ActivateDevice(device, FALSE);
 
     return Success;
@@ -287,7 +289,7 @@ output_get_modes(xf86OutputPtr xf86output)
 static void
 output_destroy(xf86OutputPtr xf86output)
 {
-    struct xwl_output *output = xf86output->driver_private;
+    struct hosted_output *output = xf86output->driver_private;
 
     free(output);
 }
@@ -389,26 +391,26 @@ hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 {
     uint32_t name;
     struct hosted_screen *hosted_screen = hosted_window->hosted_screen;
-    struct wl_buffer *buffer;
 
     if (hosted_screen->driver->name_pixmap (pixmap, &name) != Success) {
 	ErrorF("failed to name buffer\n");
 	return;
     }
 
-    buffer = wl_drm_create_buffer(hosted_screen->drm,
-				  name,
-				   pixmap->drawable.width,
-				  pixmap->drawable.height,
-				  pixmap->devKind,
-				  hosted_window->visual);
-    wl_surface_attach(hosted_window->surface, buffer);
-    wl_surface_map(hosted_window->surface,
-		   hosted_window->window->drawable.x,
-		   hosted_window->window->drawable.y,
-		   pixmap->drawable.width,
-		   pixmap->drawable.height);
-    wl_buffer_destroy(buffer);
+    if (hosted_window->buffer) {
+	ErrorF("leaking a buffer");
+    }
+
+    hosted_window->buffer =
+	wl_drm_create_buffer(hosted_screen->drm,
+			     name,
+			     pixmap->drawable.width,
+			     pixmap->drawable.height,
+			     pixmap->devKind,
+			     hosted_window->visual);
+
+    wl_surface_attach(hosted_window->surface, hosted_window->buffer, 0, 0);
+    wl_surface_map_toplevel(hosted_window->surface);
 
     wl_display_sync_callback(hosted_screen->display, free_pixmap, pixmap);
     pixmap->refcnt++;
@@ -608,22 +610,189 @@ hosted_move_window(WindowPtr window, int x, int y,
     if (hosted_window == NULL)
 	return;
 
-    wl_surface_map(hosted_window->surface,
-		   hosted_window->window->drawable.x,
-		   hosted_window->window->drawable.y,
-		   hosted_window->window->drawable.width,
-		   hosted_window->window->drawable.height);
+    wl_surface_map_toplevel(hosted_window->surface);
 }
+
+static void
+expand_source_and_mask(CursorPtr cursor, void *data)
+{
+    CARD32 *argb, *p, d, fg, bg;
+    CursorBitsPtr bits = cursor->bits;
+    int size;
+    int x, y, stride, i, bit;
+
+    size = bits->width * bits->height * 4;
+    argb = malloc(size);
+    if (argb == NULL)
+	return;
+
+    p = argb;
+    fg = ((cursor->foreRed & 0xff00) << 8) |
+	(cursor->foreGreen & 0xff00) | (cursor->foreGreen >> 8);
+    bg = ((cursor->backRed & 0xff00) << 8) |
+	(cursor->backGreen & 0xff00) | (cursor->backGreen >> 8);
+    stride = (bits->width / 8 + 3) & ~3;
+    for (y = 0; y < bits->height; y++)
+	for (x = 0; x < bits->width; x++) {
+	    i = y * stride + x / 8;
+	    bit = 1 << (x & 7);
+	    if (bits->mask[i] & bit)
+		d = 0xff000000;
+	    else
+		d = 0x00000000;
+	    if (bits->source[i] & bit)
+		d |= fg;
+	    else
+		d |= bg;
+
+	    *p++ = d;
+	}
+
+    memcpy(data, argb, size);
+    free(argb);
+}
+
+static Bool
+hosted_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
+{
+    struct hosted_screen *hosted_screen;
+    int size;
+    char filename[] = "/tmp/wayland-shm-XXXXXX";
+    int fd;
+    struct wl_buffer *buffer;
+    struct wl_visual *visual;
+    void *data;
+
+    hosted_screen = dixLookupPrivate(&screen->devPrivates,
+				     &hosted_screen_private_key);
+    size = cursor->bits->width * cursor->bits->height * 4;
+
+    fd = mkstemp(filename);
+    if (fd < 0) {
+	ErrorF("open %s failed: %s", filename, strerror(errno));
+	return FALSE;
+    }
+    if (ftruncate(fd, size) < 0) {
+	ErrorF("ftruncate failed: %s", strerror(errno));
+	close(fd);
+	return FALSE;
+    }
+
+    data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    unlink(filename);
+
+    if (data == MAP_FAILED) {
+	ErrorF("mmap failed: %s", strerror(errno));
+	close(fd);
+	return FALSE;
+    }
+
+    if (cursor->bits->argb)
+	memcpy(data, cursor->bits->argb, size);
+    else
+	expand_source_and_mask(cursor, data);
+    munmap(data, size);
+
+    visual = wl_display_get_argb_visual(hosted_screen->display);
+    buffer = wl_shm_create_buffer(hosted_screen->shm, fd,
+				  cursor->bits->width, cursor->bits->height,
+				  cursor->bits->width * 4, visual);
+    close(fd);
+
+    dixSetPrivate(&cursor->devPrivates, &hosted_cursor_private_key, buffer);
+
+    return TRUE;
+}
+
+static Bool
+hosted_unrealize_cursor(DeviceIntPtr device,
+			ScreenPtr screen, CursorPtr cursor)
+{
+    struct wl_buffer *buffer;
+
+    buffer = dixGetPrivate(&cursor->devPrivates, &hosted_cursor_private_key);
+    wl_buffer_destroy(buffer);
+
+    return TRUE;
+}
+
+static void
+hosted_set_cursor(DeviceIntPtr device,
+		  ScreenPtr screen, CursorPtr cursor, int x, int y)
+{
+    struct hosted_input_device *hosted_input_device;
+    struct wl_buffer *buffer;
+
+    if (!cursor)
+	return;
+
+    hosted_input_device =
+	dixGetPrivate(&device->devPrivates, &hosted_device_private_key);
+    if (!hosted_input_device)
+	return;
+
+    buffer = dixGetPrivate(&cursor->devPrivates, &hosted_cursor_private_key);
+
+    wl_input_device_attach(hosted_input_device->input_device,
+			   hosted_input_device->time, buffer,
+			   cursor->bits->xhot, cursor->bits->yhot);
+}
+
+static void
+hosted_move_cursor(DeviceIntPtr device, ScreenPtr screen, int x, int y)
+{
+}
+
+static Bool
+hosted_device_cursor_initialize(DeviceIntPtr device, ScreenPtr screen)
+{
+    struct hosted_screen *hosted_screen;
+
+    hosted_screen = dixLookupPrivate(&screen->devPrivates,
+				     &hosted_screen_private_key);
+
+    return hosted_screen->sprite_funcs->DeviceCursorInitialize(device,
+							       screen);
+}
+
+static void
+hosted_device_cursor_cleanup(DeviceIntPtr device, ScreenPtr screen)
+{
+    struct hosted_screen *hosted_screen;
+
+    hosted_screen = dixLookupPrivate(&screen->devPrivates,
+				     &hosted_screen_private_key);
+
+    hosted_screen->sprite_funcs->DeviceCursorCleanup(device, screen);
+}
+
+static miPointerSpriteFuncRec hosted_pointer_sprite_funcs =
+{
+    hosted_realize_cursor,
+    hosted_unrealize_cursor,
+    hosted_set_cursor,
+    hosted_move_cursor,
+    hosted_device_cursor_initialize,
+    hosted_device_cursor_cleanup
+};
 
 int
 hosted_screen_init(struct hosted_screen *hosted_screen, ScreenPtr screen)
 {
+    miPointerScreenPtr pointer_priv;
+
     hosted_screen->screen = screen;
 
     if (!dixRegisterPrivateKey(&hosted_screen_private_key, PRIVATE_SCREEN, 0))
 	return BadAlloc;
 
     if (!dixRegisterPrivateKey(&hosted_window_private_key, PRIVATE_WINDOW, 0))
+	return BadAlloc;
+
+    if (!dixRegisterPrivateKey(&hosted_cursor_private_key, PRIVATE_CURSOR, 0))
+	return BadAlloc;
+
+    if (!dixRegisterPrivateKey(&hosted_device_private_key, PRIVATE_DEVICE, 0))
 	return BadAlloc;
 
     dixSetPrivate(&screen->devPrivates,
@@ -643,6 +812,10 @@ hosted_screen_init(struct hosted_screen *hosted_screen, ScreenPtr screen)
 
     hosted_screen->MoveWindow = screen->MoveWindow;
     screen->MoveWindow = hosted_move_window;
+
+    pointer_priv = dixLookupPrivate(&screen->devPrivates, miPointerScreenKey);
+    hosted_screen->sprite_funcs = pointer_priv->spriteFuncs;
+    pointer_priv->spriteFuncs = &hosted_pointer_sprite_funcs;
 
     add_input_devices(hosted_screen);
 

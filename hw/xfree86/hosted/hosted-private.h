@@ -31,6 +31,7 @@ struct hosted_window {
     struct hosted_screen	*hosted_screen;
     struct wl_surface		*surface;
     struct wl_visual		*visual;
+    struct wl_buffer		*buffer;
     WindowPtr			 window;
     DamagePtr			 damage;
     struct list			 link;
@@ -46,6 +47,7 @@ struct hosted_screen {
     struct wl_display		*display;
     struct wl_compositor	*compositor;
     struct wl_drm		*drm;
+    struct wl_shm		*shm;
     uint32_t			 mask;
     uint32_t			 flags;
     char			*device_name;
@@ -62,6 +64,7 @@ struct hosted_screen {
     UnrealizeWindowProcPtr	 UnrealizeWindow;
     SetWindowPixmapProcPtr	 SetWindowPixmap;
     MoveWindowProcPtr		 MoveWindow;
+    miPointerSpriteFuncPtr	 sprite_funcs;
 };
 
 struct hosted_output {
@@ -82,6 +85,7 @@ struct hosted_input_device {
     struct hosted_window	*focus_window;
     int32_t			 grab_x, grab_y;
     uint32_t			 modifiers;
+    uint32_t			 time;
     struct list			 link;
 };
 
