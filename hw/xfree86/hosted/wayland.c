@@ -195,6 +195,7 @@ input_device_handle_keyboard_focus(void *data,
 
     hosted_input_device->time = time;
 
+    hosted_input_device->modifiers = 0;
     end = (uint32_t *) ((char *) keys->data + keys->size);
     for (k = keys->data; k < end; k++) {
 	switch (*k) {
