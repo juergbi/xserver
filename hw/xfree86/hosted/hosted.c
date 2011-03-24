@@ -52,6 +52,7 @@
 
 #include "hosted.h"
 #include "hosted-private.h"
+#include "drm-client-protocol.h"
 
 #ifdef WITH_LIBDRM
 #include "wayland-drm-client-protocol.h"
@@ -288,6 +289,7 @@ output_get_modes(xf86OutputPtr xf86output)
     output->monitor.det_mon[1].type = DT;
     output->monitor.det_mon[2].type = DT;
     output->monitor.det_mon[3].type = DT;
+    output->monitor.no_sections = 0;
 
     xf86output->MonInfo = &output->monitor;
 

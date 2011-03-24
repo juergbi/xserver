@@ -44,6 +44,7 @@
 
 #include "hosted.h"
 #include "hosted-private.h"
+#include "drm-client-protocol.h"
 
 static void
 wayland_flush(struct hosted_window *hosted_window, BoxPtr box)
