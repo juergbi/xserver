@@ -317,7 +317,6 @@ hosted_output_create(struct hosted_screen *hosted_screen)
 	ErrorF("create_output ENOMEM");
 	return NULL;
     }
-    memset(hosted_output, 0, sizeof *hosted_output);
 
     hosted_output->hosted_screen = hosted_screen;
     hosted_output->width = hosted_screen->width = 800;
