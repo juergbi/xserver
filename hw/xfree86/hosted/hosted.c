@@ -109,6 +109,8 @@ input_init_pointer(struct hosted_input_device *d, struct hosted_screen *screen)
     char *name = "hosted";
     Atom labels[3];
 
+    xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Pointer\n");
+
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->pointer = device;
     dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
@@ -155,6 +157,8 @@ input_init_keyboard(struct hosted_input_device *d,
     char *name = "hosted";
     XkbRMLVOSet rmlvo;
 
+    xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Keyboard\n");
+
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->keyboard = device;
     dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
@@ -171,6 +175,7 @@ input_init_keyboard(struct hosted_input_device *d,
     rmlvo.layout = "us";
     rmlvo.variant = NULL;
     rmlvo.options = NULL;
+
     if (!InitKeyboardDeviceStruct(device, &rmlvo, NULL, input_kbd_ctrl))
 	return !Success;
 
@@ -402,9 +407,10 @@ hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 {
     struct hosted_screen *hosted_screen = hosted_window->hosted_screen;
 
-    if (hosted_window->buffer) {
-	ErrorF("leaking a buffer");
-    }
+    /* We can safely destroy the buffer because we only use one buffer
+     * per surface in hosted model */
+    if (hosted_window->buffer)
+        wl_buffer_destroy(hosted_window->buffer);
 
     hosted_screen->driver->create_window_buffer(hosted_window, pixmap);
 
@@ -449,6 +455,12 @@ hosted_create_window(WindowPtr window)
     hosted_screen->CreateWindow = screen->CreateWindow;
     screen->CreateWindow = hosted_create_window;
 
+    /* First window is mapped, so now we can add input devices */
+    if (!hosted_screen->initialized) {
+        hosted_screen->initialized = 1;
+        add_input_devices(hosted_screen);
+    }
+
     if (!(hosted_screen->flags & HOSTED_FLAGS_ROOTLESS) ||
 	window->parent != NULL)
 	return ret;
@@ -465,12 +477,6 @@ hosted_create_window(WindowPtr window)
     selection->client = serverClient;
 
     CompositeRedirectSubwindows(window, CompositeRedirectManual);
-
-    /* First window is mapped, so now we can add input devices */
-    if (!hosted_screen->initialized) {
-        hosted_screen->initialized = 1;
-        add_input_devices(hosted_screen);
-    }
 
     return ret;
 }
@@ -569,10 +575,9 @@ hosted_unrealize_window(WindowPtr window)
 
     hosted_window =
 	dixLookupPrivate(&window->devPrivates, &hosted_window_private_key);
-    if (hosted_window->buffer) {
-        wl_buffer_destroy(hosted_window->buffer);
-    }
     if (hosted_window) {
+        if (hosted_window->buffer)
+            wl_buffer_destroy(hosted_window->buffer);
 	wl_surface_destroy(hosted_window->surface);
 	free(hosted_window);
 	dixSetPrivate(&window->devPrivates, &hosted_window_private_key, NULL);
