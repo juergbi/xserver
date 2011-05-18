@@ -48,11 +48,14 @@
 #include <xf86str.h>
 #include <windowstr.h>
 #include <xf86Priv.h>
-#include <xf86drm.h>
 #include <mipointrst.h>
 
 #include "hosted.h"
 #include "hosted-private.h"
+
+#ifdef WITH_LIBDRM
+#include "wayland-drm-client-protocol.h"
+#endif
 
 /*
  * TODO:
@@ -309,12 +312,16 @@ hosted_output_create(struct hosted_screen *hosted_screen)
     xf86OutputPtr xf86output;
     xf86CrtcPtr xf86crtc;
 
-    hosted_output = malloc(sizeof *hosted_output);
+    hosted_output = calloc(sizeof *hosted_output, 1);
     if (hosted_output == NULL) {
 	ErrorF("create_output ENOMEM");
 	return NULL;
     }
+    memset(hosted_output, 0, sizeof *hosted_output);
+
     hosted_output->hosted_screen = hosted_screen;
+    hosted_output->width = hosted_screen->width = 800;
+    hosted_output->height = hosted_screen->height = 600;
 
     xf86output = xf86OutputCreate(hosted_screen->scrninfo,
 				  &output_funcs, "HOSTED-1");
@@ -331,35 +338,40 @@ hosted_output_create(struct hosted_screen *hosted_screen)
     return hosted_output;
 }
 
-struct hosted_input_device *
-hosted_input_device_create(struct hosted_screen *hosted_screen)
-{
-    struct hosted_input_device *hosted_input_device;
-
-    hosted_input_device = malloc(sizeof *hosted_input_device);
-    if (hosted_input_device == NULL) {
-	ErrorF("create_output enomem");
-	return NULL;
-    }
-
-    memset(hosted_input_device, 0, sizeof *hosted_input_device);
-    hosted_input_device->hosted_screen = hosted_screen;
-
-    list_add(&hosted_input_device->link, &hosted_screen->input_device_list);
-
-    return hosted_input_device;
-}
-
 static void
 add_input_devices(struct hosted_screen *hosted_screen)
 {
     struct hosted_input_device *hosted_input_device;
 
+    if (!hosted_screen->initialized)
+        return ;
+
     list_for_each_entry(hosted_input_device,
 			&hosted_screen->input_device_list, link) {
+        if (hosted_input_device->pointer || hosted_input_device->keyboard)
+            continue ;
 	input_init_pointer(hosted_input_device, hosted_screen);
 	input_init_keyboard(hosted_input_device, hosted_screen);
     }
+}
+
+struct hosted_input_device *
+hosted_input_device_create(struct hosted_screen *hosted_screen)
+{
+    struct hosted_input_device *hosted_input_device;
+
+    hosted_input_device = calloc(sizeof *hosted_input_device, 1);
+    if (hosted_input_device == NULL) {
+	ErrorF("create_input ENOMEM");
+	return NULL;
+    }
+
+    hosted_input_device->hosted_screen = hosted_screen;
+    list_add(&hosted_input_device->link, &hosted_screen->input_device_list);
+
+    add_input_devices(hosted_screen);
+
+    return hosted_input_device;
 }
 
 static Bool
@@ -389,25 +401,18 @@ static void free_pixmap(void *data)
 static void
 hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 {
-    uint32_t name;
     struct hosted_screen *hosted_screen = hosted_window->hosted_screen;
-
-    if (hosted_screen->driver->name_pixmap (pixmap, &name) != Success) {
-	ErrorF("failed to name buffer\n");
-	return;
-    }
 
     if (hosted_window->buffer) {
 	ErrorF("leaking a buffer");
     }
 
-    hosted_window->buffer =
-	wl_drm_create_buffer(hosted_screen->drm,
-			     name,
-			     pixmap->drawable.width,
-			     pixmap->drawable.height,
-			     pixmap->devKind,
-			     hosted_window->visual);
+    hosted_screen->driver->create_window_buffer(hosted_window, pixmap);
+
+    if (!hosted_window->buffer) {
+        ErrorF("failed to create buffer\n");
+	return;
+    }
 
     wl_surface_attach(hosted_window->surface, hosted_window->buffer, 0, 0);
     wl_surface_map_toplevel(hosted_window->surface);
@@ -462,6 +467,12 @@ hosted_create_window(WindowPtr window)
 
     CompositeRedirectSubwindows(window, CompositeRedirectManual);
 
+    /* First window is mapped, so now we can add input devices */
+    if (!hosted_screen->initialized) {
+        hosted_screen->initialized = 1;
+        add_input_devices(hosted_screen);
+    }
+
     return ret;
 }
 
@@ -505,7 +516,7 @@ hosted_realize_window(WindowPtr window)
 	    return ret;
     }
 
-    hosted_window = malloc(sizeof *hosted_window);
+    hosted_window = calloc(sizeof *hosted_window, 1);
     hosted_window->hosted_screen = hosted_screen;
     hosted_window->window = window;
     hosted_window->surface =
@@ -559,6 +570,9 @@ hosted_unrealize_window(WindowPtr window)
 
     hosted_window =
 	dixLookupPrivate(&window->devPrivates, &hosted_window_private_key);
+    if (hosted_window->buffer) {
+        wl_buffer_destroy(hosted_window->buffer);
+    }
     if (hosted_window) {
 	wl_surface_destroy(hosted_window->surface);
 	free(hosted_window);
@@ -817,8 +831,6 @@ hosted_screen_init(struct hosted_screen *hosted_screen, ScreenPtr screen)
     hosted_screen->sprite_funcs = pointer_priv->spriteFuncs;
     pointer_priv->spriteFuncs = &hosted_pointer_sprite_funcs;
 
-    add_input_devices(hosted_screen);
-
     return Success;
 }
 
@@ -828,13 +840,12 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
 {
     struct hosted_screen *hosted_screen;
 
-    hosted_screen = malloc(sizeof *hosted_screen);
+    hosted_screen = calloc(sizeof *hosted_screen, 1);
     if (hosted_screen == NULL) {
-	ErrorF("malloc failed\n");
+	ErrorF("calloc failed\n");
 	return NULL;
     }
 
-    memset(hosted_screen, 0, sizeof *hosted_screen);
     list_init(&hosted_screen->input_device_list);
     list_init(&hosted_screen->damage_window_list);
     hosted_screen->scrninfo = scrninfo;
@@ -848,7 +859,7 @@ hosted_screen_pre_init(ScrnInfoPtr scrninfo,
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
 
-    if (wayland_screen_init(hosted_screen) != Success)
+    if (wayland_screen_init(hosted_screen, driver->use_drm) != Success)
 	return NULL;
 
     xf86InitialConfiguration(scrninfo, TRUE);
@@ -861,10 +872,41 @@ int hosted_screen_get_drm_fd(struct hosted_screen *hosted_screen)
     return hosted_screen->drm_fd;
 }
 
+
+#ifdef WITH_LIBDRM
+int
+hosted_create_window_buffer_drm(struct hosted_window *hosted_window,
+				PixmapPtr pixmap, uint32_t name)
+{
+    hosted_window->buffer =
+      wl_drm_create_buffer(hosted_window->hosted_screen->drm,
+			   name,
+			   pixmap->drawable.width,
+			   pixmap->drawable.height,
+			   pixmap->devKind,
+			   hosted_window->visual);
+
+    return hosted_window->buffer ? Success : BadDrawable;
+}
+#endif
+
+int
+hosted_create_window_buffer_shm(struct hosted_window *hosted_window,
+				PixmapPtr pixmap, int fd)
+{
+    hosted_window->buffer =
+      wl_shm_create_buffer(hosted_window->hosted_screen->shm, fd,
+			   pixmap->drawable.width, pixmap->drawable.height,
+			   pixmap->drawable.width * 4, hosted_window->visual);
+
+    return hosted_window->buffer ? Success : BadDrawable;
+}
+
 void hosted_screen_destroy(struct hosted_screen *hosted_screen)
 {
     wl_display_destroy(hosted_screen->display);
-    close(hosted_screen->drm_fd);
+    if (hosted_screen->drm_fd >= 0)
+        close(hosted_screen->drm_fd);
     free(hosted_screen);
 }
 
@@ -872,7 +914,10 @@ int hosted_screen_authenticate(struct hosted_screen *hosted_screen,
 			       uint32_t magic)
 {
     hosted_screen->authenticated = 0;
-    wl_drm_authenticate (hosted_screen->drm, magic);
+#ifdef WITH_LIBDRM
+    if (hosted_screen->drm)
+        wl_drm_authenticate (hosted_screen->drm, magic);
+#endif
     wl_display_iterate (hosted_screen->display, WL_DISPLAY_WRITABLE);
     while (!hosted_screen->authenticated)
 	wl_display_iterate (hosted_screen->display, WL_DISPLAY_READABLE);

@@ -26,11 +26,16 @@
 #ifndef _HOSTED_H_
 #define _HOSTED_H_
 
-#define HOSTED_VERSION 1
+#define HOSTED_VERSION 2
+
+struct hosted_window;
+struct hosted_screen;
 
 struct hosted_driver {
     int version;
-    int (*name_pixmap)(PixmapPtr pixmap, uint32_t *name);
+    int use_drm;
+    int (*create_window_buffer)(struct hosted_window *hosted_window,
+                                PixmapPtr pixmap);
 };
 
 #define HOSTED_FLAGS_ROOTLESS 0x01
@@ -57,5 +62,13 @@ hosted_screen_post_damage(struct hosted_screen *hosted_screen);
 extern _X_EXPORT int
 hosted_screen_authenticate(struct hosted_screen *hosted_screen,
 			   uint32_t magic);
+
+extern _X_EXPORT int
+hosted_create_window_buffer_drm(struct hosted_window *hosted_window,
+                                PixmapPtr pixmap, uint32_t name);
+
+extern _X_EXPORT int
+hosted_create_window_buffer_shm(struct hosted_window *hosted_window,
+                                PixmapPtr pixmap, int fd);
 
 #endif /* _HOSTED_H_ */

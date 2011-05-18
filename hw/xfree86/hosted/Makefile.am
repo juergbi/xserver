@@ -21,4 +21,8 @@ libhosted_la_SOURCES =				\
 	wayland.c				\
 	x11.c
 
+if DRM
+libhosted_la_SOURCES += wayland-drm.c
+endif
+
 sdk_HEADERS = hosted.h

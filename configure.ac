@@ -1111,12 +1111,13 @@ case "$DRI2,$HAVE_DRI2PROTO" in
 esac
 AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
 
-if test "x$DRI" = xyes || test "x$DRI2" = xyes || test "x$CONFIG_UDEV_KMS" = xyes; then
+if test "x$DRI" = xyes || test "x$DRI2" = xyes || test "x$HOSTED" = xyes || test "x$CONFIG_UDEV_KMS" = xyes; then
 	if test "x$DRM" = xyes; then
 		AC_DEFINE(WITH_LIBDRM, 1, [Building with libdrm support])
 		PKG_CHECK_MODULES([LIBDRM], $LIBDRM)
 	fi
 fi
+AM_CONDITIONAL(DRM, test "x$DRM" = xyes)
 
 if test "x$DRI2" = xyes; then
 	save_CFLAGS=$CFLAGS

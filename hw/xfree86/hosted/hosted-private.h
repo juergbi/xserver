@@ -26,7 +26,6 @@
 #ifndef _HOSTED_PRIVATE_H_
 #define _HOSTED_PRIVATE_H_
 
-
 struct hosted_window {
     struct hosted_screen	*hosted_screen;
     struct wl_surface		*surface;
@@ -51,6 +50,7 @@ struct hosted_screen {
     uint32_t			 mask;
     uint32_t			 flags;
     char			*device_name;
+    int                          initialized;
     uint32_t			 authenticated;
     struct list			 input_device_list;
     struct list			 damage_window_list;
@@ -73,6 +73,7 @@ struct hosted_output {
     int32_t			 x, y, width, height;
     xf86Monitor			 monitor;
 };
+
 
 #define MODIFIER_META 0x01
 
@@ -98,8 +99,9 @@ hosted_output_create(struct hosted_screen *hosted_screen);
 struct hosted_input_device *
 hosted_input_device_create(struct hosted_screen *hosted_screen);
 
-int wayland_screen_init(struct hosted_screen *screen);
+int wayland_screen_init(struct hosted_screen *screen, int use_drm);
 int x11_screen_init(struct hosted_screen *screen);
 
+int wayland_drm_screen_init(struct hosted_screen *screen);
 
 #endif /* _HOSTED_H_ */

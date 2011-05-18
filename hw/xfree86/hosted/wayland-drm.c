@@ -1,5 +1,5 @@
 /*
- * Copyright © 2010 Kristian Høgsberg
+ * Copyright © 2011 Kristian Høgsberg
  *
  * Permission to use, copy, modify, distribute, and sell this software
  * and its documentation for any purpose is hereby granted without
@@ -27,27 +27,63 @@
 #include "xorg-config.h"
 #endif
 
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <xf86drm.h>
+#include <wayland-util.h>
+#include <wayland-client.h>
+#include <wayland-drm-client-protocol.h>
+
 #include <xf86Xinput.h>
 #include <xf86Crtc.h>
 #include <xf86str.h>
 #include <windowstr.h>
+#include <input.h>
+#include <inputstr.h>
+#include <exevents.h>
 
 #include "hosted.h"
 #include "hosted-private.h"
 
 static void
-x11_flush(struct hosted_window *hosted_window, BoxPtr box)
+drm_handle_device (void *data, struct wl_drm *drm, const char *device)
 {
+    struct hosted_screen *hosted_screen = data;
+
+    hosted_screen->device_name = strdup (device);
 }
 
-static struct hosted_backend x11_backend = {
-    x11_flush
+static void
+drm_handle_authenticated (void *data, struct wl_drm *drm)
+{
+    struct hosted_screen *hosted_screen = data;
+
+    hosted_screen->authenticated = 1;
+}
+
+static const struct wl_drm_listener drm_listener =
+{
+  drm_handle_device,
+  drm_handle_authenticated
 };
 
 int
-x11_screen_init(struct hosted_screen *screen)
+wayland_drm_screen_init(struct hosted_screen *hosted_screen)
 {
-    screen->backend = &x11_backend;
+    uint32_t magic;
 
+    hosted_screen->drm_fd = open(hosted_screen->device_name, O_RDWR);
+    if (hosted_screen->drm_fd < 0) {
+	ErrorF("failed to open the drm fd\n");
+	return BadAccess;
+    }
+
+    if (drmGetMagic(hosted_screen->drm_fd, &magic)) {
+	ErrorF("failed to get drm magic");
+	return BadAccess;
+    }
+
+    wl_drm_authenticate(hosted_screen->drm, magic);
     return Success;
 }

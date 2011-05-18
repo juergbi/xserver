@@ -31,7 +31,6 @@
 #include <fcntl.h>
 
 #include <linux/input.h>
-#include <xf86drm.h>
 #include <wayland-util.h>
 #include <wayland-client.h>
 
@@ -58,35 +57,13 @@ static struct hosted_backend wayland_backend = {
 };
 
 static void
-drm_handle_device (void *data, struct wl_drm *drm, const char *device)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    hosted_screen->device_name = strdup (device);
-}
-
-static void
-drm_handle_authenticated (void *data, struct wl_drm *drm)
-{
-    struct hosted_screen *hosted_screen = data;
-
-    hosted_screen->authenticated = 1;
-}
-
-static const struct wl_drm_listener drm_listener =
-{
-  drm_handle_device,
-  drm_handle_authenticated
-};
-
-static void
 display_handle_geometry(void *data,
 			struct wl_output *output,
 			int32_t x, int32_t y,
 			int32_t width, int32_t height)
 {
     struct hosted_output *hosted_output = data;
-
+    fprintf(stderr, "geometry %d %d %d %d\n", x, y, width, height);
     hosted_output->x = x;
     hosted_output->y = y;
     hosted_output->width = width;
@@ -101,12 +78,14 @@ static const struct wl_output_listener output_listener = {
 };
 
 static void
-create_output(struct hosted_screen *hosted_screen, uint32_t id)
+create_output(struct hosted_screen *hosted_screen, uint32_t id,
+	      uint32_t version)
 {
     struct hosted_output *hosted_output;
 
     hosted_output = hosted_output_create(hosted_screen);
-    hosted_output->output = wl_output_create (hosted_screen->display, id);
+    hosted_output->output = wl_output_create (hosted_screen->display, id,
+					      version);
     wl_output_add_listener(hosted_output->output,
 			   &output_listener, hosted_output);
 }
@@ -236,13 +215,15 @@ static const struct wl_input_device_listener input_device_listener = {
 };
 
 static void
-create_input_device(struct hosted_screen *hosted_screen, uint32_t id)
+create_input_device(struct hosted_screen *hosted_screen, uint32_t id,
+		    uint32_t version)
 {
     struct hosted_input_device *hosted_input_device;
 
     hosted_input_device = hosted_input_device_create(hosted_screen);
     hosted_input_device->input_device =
-	wl_input_device_create (hosted_screen->display, id);
+    wl_input_device_create (hosted_screen->display, id,
+			    version);
 
     wl_input_device_add_listener(hosted_input_device->input_device,
 				 &input_device_listener,
@@ -258,19 +239,22 @@ global_handler(struct wl_display *display,
 {
     struct hosted_screen *hosted_screen = data;
 
-    if (strcmp (interface, "compositor") == 0) {
+    if (strcmp (interface, "wl_compositor") == 0) {
 	hosted_screen->compositor =
-	    wl_compositor_create (hosted_screen->display, id);
-    } else if (strcmp (interface, "drm") == 0) {
+	    wl_compositor_create (hosted_screen->display, id, version);
+#ifdef WITH_LIBDRMM
+    } else if (strcmp (interface, "wl_drm") == 0) {
 	hosted_screen->drm = wl_drm_create (hosted_screen->display, id);
 	wl_drm_add_listener (hosted_screen->drm,
 			     &drm_listener, hosted_screen);
-    } else if (strcmp (interface, "shm") == 0) {
-	hosted_screen->shm = wl_shm_create (hosted_screen->display, id);
-    } else if (strcmp (interface, "output") == 0) {
-	create_output(hosted_screen, id);
-    } else if (strcmp (interface, "input_device") == 0) {
-	create_input_device(hosted_screen, id);
+#endif
+    } else if (strcmp (interface, "wl_shm") == 0) {
+        hosted_screen->shm = wl_shm_create (hosted_screen->display, id,
+					    version);
+    } else if (strcmp (interface, "wl_output") == 0) {
+        create_output(hosted_screen, id, version);
+    } else if (strcmp (interface, "wl_input_device") == 0) {
+        create_input_device(hosted_screen, id, version);
     }
 }
 
@@ -306,10 +290,8 @@ block_handler(pointer data, struct timeval **tv, pointer read_mask)
 }
 
 int
-wayland_screen_init(struct hosted_screen *hosted_screen)
+wayland_screen_init(struct hosted_screen *hosted_screen, int use_drm)
 {
-    uint32_t magic;
-
     hosted_screen->backend = &wayland_backend;
 
     hosted_screen->display =
@@ -334,21 +316,19 @@ wayland_screen_init(struct hosted_screen *hosted_screen)
     RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler,
 				   hosted_screen);
 
-    hosted_screen->drm_fd = open(hosted_screen->device_name, O_RDWR);
-    if (hosted_screen->drm_fd < 0) {
-	ErrorF("failed to open the drm fd\n");
-	return BadAccess;
+#ifdef WITH_LIBDRM
+    if (use_drm) {
+        int ret;
+
+        if ((ret = wayland_drm_screen_init(hosted_screen)) != Success)
+	    return ret;
+
+        wl_display_iterate(hosted_screen->display, WL_DISPLAY_WRITABLE);
+        while (!hosted_screen->authenticated)
+            wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
     }
 
-    if (drmGetMagic(hosted_screen->drm_fd, &magic)) {
-	ErrorF("failed to get drm magic");
-	return BadAccess;
-    }
-
-    wl_drm_authenticate(hosted_screen->drm, magic);
-    wl_display_iterate(hosted_screen->display, WL_DISPLAY_WRITABLE);
-    while (!hosted_screen->authenticated)
-	wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
+#endif
 
     return Success;
 }
