@@ -58,6 +58,33 @@ static struct hosted_backend wayland_backend = {
 };
 
 static void
+compositor_handle_visual(void *data,
+			 struct wl_compositor *compositor,
+			 uint32_t id, uint32_t token)
+{
+    struct hosted_screen *hosted_screen = data;
+
+    switch (token) {
+    case WL_COMPOSITOR_VISUAL_ARGB32:
+	hosted_screen->argb_visual =
+	    wl_visual_create(hosted_screen->display, id, 1);
+	break;
+    case WL_COMPOSITOR_VISUAL_PREMULTIPLIED_ARGB32:
+	hosted_screen->premultiplied_argb_visual =
+	    wl_visual_create(hosted_screen->display, id, 1);
+	break;
+    case WL_COMPOSITOR_VISUAL_XRGB32:
+	hosted_screen->rgb_visual =
+	    wl_visual_create(hosted_screen->display, id, 1);
+	break;
+    }
+}
+
+static const struct wl_compositor_listener compositor_listener = {
+	compositor_handle_visual,
+};
+
+static void
 display_handle_geometry(void *data,
 			struct wl_output *output,
 			int32_t x, int32_t y,
@@ -85,8 +112,8 @@ create_output(struct hosted_screen *hosted_screen, uint32_t id,
     struct hosted_output *hosted_output;
 
     hosted_output = hosted_output_create(hosted_screen);
-    hosted_output->output = wl_output_create (hosted_screen->display, id,
-					      version);
+
+    hosted_output->output = wl_output_create (hosted_screen->display, id, 1);
     wl_output_add_listener(hosted_output->output,
 			   &output_listener, hosted_output);
 }
@@ -224,8 +251,7 @@ create_input_device(struct hosted_screen *hosted_screen, uint32_t id,
 
     hosted_input_device = hosted_input_device_create(hosted_screen);
     hosted_input_device->input_device =
-    wl_input_device_create (hosted_screen->display, id,
-			    version);
+        wl_input_device_create (hosted_screen->display, id, 1);
 
     wl_input_device_add_listener(hosted_input_device->input_device,
 				 &input_device_listener,
@@ -243,7 +269,9 @@ global_handler(struct wl_display *display,
 
     if (strcmp (interface, "wl_compositor") == 0) {
 	hosted_screen->compositor =
-	    wl_compositor_create (hosted_screen->display, id, version);
+	    wl_compositor_create (hosted_screen->display, id, 1);
+	wl_compositor_add_listener(hosted_screen->compositor,
+				   &compositor_listener, hosted_screen);
 #ifdef WITH_LIBDRMM
     } else if (strcmp (interface, "wl_drm") == 0) {
 	hosted_screen->drm = wl_drm_create (hosted_screen->display, id);
@@ -252,11 +280,11 @@ global_handler(struct wl_display *display,
 #endif
     } else if (strcmp (interface, "wl_shm") == 0) {
         hosted_screen->shm = wl_shm_create (hosted_screen->display, id,
-					    version);
+					    1);
     } else if (strcmp (interface, "wl_output") == 0) {
-        create_output(hosted_screen, id, version);
+        create_output(hosted_screen, id, 1);
     } else if (strcmp (interface, "wl_input_device") == 0) {
-        create_input_device(hosted_screen, id, version);
+        create_input_device(hosted_screen, id, 1);
     }
 }
 
@@ -296,8 +324,7 @@ wayland_screen_init(struct hosted_screen *hosted_screen, int use_drm)
 {
     hosted_screen->backend = &wayland_backend;
 
-    hosted_screen->display =
-	wl_display_connect(NULL);
+    hosted_screen->display = wl_display_connect(NULL);
     if (hosted_screen->display == NULL) {
 	ErrorF("wl_display_create failed\n");
 	return BadAlloc;
@@ -329,7 +356,6 @@ wayland_screen_init(struct hosted_screen *hosted_screen, int use_drm)
         while (!hosted_screen->authenticated)
             wl_display_iterate(hosted_screen->display, WL_DISPLAY_READABLE);
     }
-
 #endif
 
     return Success;

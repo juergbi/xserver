@@ -47,6 +47,9 @@ struct hosted_screen {
     struct wl_compositor	*compositor;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
+    struct wl_visual		*argb_visual;
+    struct wl_visual		*rgb_visual;
+    struct wl_visual		*premultiplied_argb_visual;
     uint32_t			 mask;
     uint32_t			 flags;
     char			*device_name;

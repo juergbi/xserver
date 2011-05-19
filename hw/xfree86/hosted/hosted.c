@@ -421,8 +421,8 @@ hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 	return;
     }
 
-    wl_surface_attach(hosted_window->surface, hosted_window->buffer, 0, 0);
     wl_surface_map_toplevel(hosted_window->surface);
+    wl_surface_attach(hosted_window->surface, hosted_window->buffer, 0, 0);
 
     wl_display_sync_callback(hosted_screen->display, free_pixmap, pixmap);
     pixmap->refcnt++;
@@ -539,11 +539,9 @@ hosted_realize_window(WindowPtr window)
 	    break;
 
     if (screen->visuals[i].nplanes == 32)
-	hosted_window->visual =
-	    wl_display_get_premultiplied_argb_visual(hosted_screen->display);
+	hosted_window->visual = hosted_screen->premultiplied_argb_visual;
     else
-	hosted_window->visual =
-	    wl_display_get_rgb_visual(hosted_screen->display);
+	hosted_window->visual = hosted_screen->rgb_visual;
 
     wl_surface_set_user_data(hosted_window->surface, hosted_window);
     hosted_window_attach(hosted_window, (*screen->GetWindowPixmap)(window));
@@ -713,7 +711,7 @@ hosted_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 	expand_source_and_mask(cursor, data);
     munmap(data, size);
 
-    visual = wl_display_get_argb_visual(hosted_screen->display);
+    visual = hosted_screen->argb_visual;
     buffer = wl_shm_create_buffer(hosted_screen->shm, fd,
 				  cursor->bits->width, cursor->bits->height,
 				  cursor->bits->width * 4, visual);
