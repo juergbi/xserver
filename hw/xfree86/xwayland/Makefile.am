@@ -6,28 +6,27 @@ INCLUDES =					\
 	-I$(srcdir)/../parser			\
 	-I$(srcdir)/../modes
 
-libhosted_la_LTLIBRARIES = libhosted.la
-libhosted_la_CFLAGS = \
+libxwayland_la_LTLIBRARIES = libxwayland.la
+libxwayland_la_CFLAGS = \
 	-DHAVE_XORG_CONFIG_H \
 	@DIX_CFLAGS@ @XORG_CFLAGS@ @LIBDRM_CFLAGS@ \
 	-I$(top_srcdir)/hw/xfree86/common \
 	-I$(top_srcdir)/hw/xfree86/os-support/bus
 
-libhosted_la_LDFLAGS = -module -avoid-version @LIBDRM_LIBS@ -lwayland-client
-libhosted_ladir = $(moduledir)/extensions
-libhosted_la_SOURCES =				\
-	hosted.c				\
-	hosted-private.h			\
-	wayland.c				\
+libxwayland_la_LDFLAGS = -module -avoid-version @LIBDRM_LIBS@ -lwayland-client
+libxwayland_ladir = $(moduledir)/extensions
+libxwayland_la_SOURCES =			\
+	xwayland.c				\
+	xwayland-client.c			\
+	xwayland-private.h			\
 	drm-client-protocol.h			\
-	drm-protocol.c				\
-	x11.c
+	drm-protocol.c
 
 if DRM
-libhosted_la_SOURCES += wayland-drm.c
+libxwayland_la_SOURCES += xwayland-drm.c
 endif
 
-sdk_HEADERS = hosted.h
+sdk_HEADERS = xwayland.h
 
 BUILT_SOURCES =					\
 	drm-client-protocol.h			\

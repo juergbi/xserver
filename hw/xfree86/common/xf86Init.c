@@ -456,8 +456,8 @@ InitOutput(ScreenInfo * pScreenInfo, int argc, char **argv)
         if (xf86DoShowOptions)
             DoShowOptions();
 
-    /* FIXME: Better to delete drivers that require vt or hw if hosted. */
-    if (xorgHosted) {
+    /* FIXME: Better to delete drivers that require vt or hw if wayland. */
+    if (xorgWayland) {
         xorgHWAccess = FALSE;
         xorgHWOpenConsole = FALSE;
     }
@@ -1470,9 +1470,9 @@ ddxProcessArgument(int argc, char **argv, int i)
         return 1;
     }
 
-  if (!strcmp(argv[i], "-hosted"))
+  if (!strcmp(argv[i], "-wayland"))
   {
-    xorgHosted = TRUE;
+    xorgWayland = TRUE;
     return 1;
   }
 

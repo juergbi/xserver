@@ -204,5 +204,5 @@ Bool xf86VidModeAllowNonLocal = FALSE;
 #endif
 RootWinPropPtr *xf86RegisteredPropertiesTable = NULL;
 Bool xorgHWAccess = FALSE;
-Bool xorgHosted = FALSE;
+Bool xorgWayland = FALSE;
 Bool xorgRootless = FALSE;

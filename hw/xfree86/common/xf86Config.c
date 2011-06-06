@@ -864,7 +864,7 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
             xf86Info.autoAddGPU ? "A" : "Not a");
 
     /* FIXME: Do that at the right place (before xf86Msg). */
-    if (xorgHosted) {
+    if (xorgWayland) {
             xf86Info.autoAddDevices = FALSE;
             xf86Info.autoEnableDevices = FALSE;
     }
@@ -960,7 +960,7 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
 #endif
 
     /* if we're not hotplugging, force some input devices to exist */
-    if (!xorgHosted)
+    if (!xorgWayland)
         xf86Info.forceInputDevices = !(xf86Info.autoAddDevices && xf86Info.autoEnableDevices);
 
     /* when forcing input devices, we use kbd. otherwise evdev, so use the

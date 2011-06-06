@@ -9,8 +9,8 @@ DRI2_SUBDIR = dri2
 DRI2_LIB = dri2/libdri2.la
 endif
 
-if HOSTED
-HOSTED_SUBDIR = hosted
+if WAYLAND
+WAYLAND_SUBDIR = xwayland
 endif
 
 if XF86UTILS
@@ -32,14 +32,14 @@ endif
 SUBDIRS = common ddc i2c x86emu $(INT10_SUBDIR) fbdevhw os-support parser \
 	  ramdac shadowfb $(VBE_SUBDIR) $(VGAHW_SUBDIR) \
 	  loader dixmods exa modes \
-	  $(DRI_SUBDIR) $(DRI2_SUBDIR) $(HOSTED_SUBDIR) $(XF86UTILS_SUBDIR) \
+	  $(DRI_SUBDIR) $(DRI2_SUBDIR) $(WAYLAND_SUBDIR) $(XF86UTILS_SUBDIR) \
 	  doc man
 
 # FIXME: DIST_SUBDIRS is already set to that value anyway
 DIST_SUBDIRS = common ddc i2c x86emu int10 fbdevhw os-support parser \
                ramdac shadowfb vbe vgahw \
                loader dixmods exa modes \
-	       dri dri2 hosted utils \
+	       dri dri2 xwayland utils \
 	       doc man
 
 bin_PROGRAMS = Xorg

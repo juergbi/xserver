@@ -50,8 +50,8 @@
 #include <xf86Priv.h>
 #include <mipointrst.h>
 
-#include "hosted.h"
-#include "hosted-private.h"
+#include "xwayland.h"
+#include "xwayland-private.h"
 #include "drm-client-protocol.h"
 
 #ifdef WITH_LIBDRM
@@ -64,10 +64,10 @@
  *  - active grabs, grab owner crack
  */
 
-static DevPrivateKeyRec hosted_window_private_key;
-static DevPrivateKeyRec hosted_screen_private_key;
-static DevPrivateKeyRec hosted_cursor_private_key;
-static DevPrivateKeyRec hosted_device_private_key;
+static DevPrivateKeyRec xwl_window_private_key;
+static DevPrivateKeyRec xwl_screen_private_key;
+static DevPrivateKeyRec xwl_cursor_private_key;
+static DevPrivateKeyRec xwl_device_private_key;
 
 static int
 input_proc(DeviceIntPtr device, int event)
@@ -100,21 +100,21 @@ input_kbd_ctrl(DeviceIntPtr device, KeybdCtrl *ctrl)
 }
 
 static int
-input_init_pointer(struct hosted_input_device *d, struct hosted_screen *screen)
+input_init_pointer(struct xwl_input_device *d, struct xwl_screen *screen)
 {
     DeviceIntPtr device;
     int min_x = 0, min_y = 0;
     int max_x = screen->width, max_y = screen->height;
     static unsigned char map[] = { 0, 1, 2, 3 };
     CARD32 atom;
-    char *name = "hosted";
+    char *name = "xwayland";
     Atom labels[3];
 
     xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Pointer\n");
 
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->pointer = device;
-    dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
+    dixSetPrivate(&device->devPrivates, &xwl_device_private_key, d);
 
     atom = MakeAtom(name, strlen(name), TRUE);
     AssignTypeAndName(device, atom, name);
@@ -150,19 +150,19 @@ input_init_pointer(struct hosted_input_device *d, struct hosted_screen *screen)
 }
 
 static int
-input_init_keyboard(struct hosted_input_device *d,
-		    struct hosted_screen *screen)
+input_init_keyboard(struct xwl_input_device *d,
+		    struct xwl_screen *screen)
 {
     DeviceIntPtr device;
     CARD32 atom;
-    char *name = "hosted";
+    char *name = "xwayland";
     XkbRMLVOSet rmlvo;
 
     xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Keyboard\n");
 
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->keyboard = device;
-    dixSetPrivate(&device->devPrivates, &hosted_device_private_key, d);
+    dixSetPrivate(&device->devPrivates, &xwl_device_private_key, d);
 
     atom = MakeAtom(name, strlen(name), TRUE);
     AssignTypeAndName(device, atom, name);
@@ -274,7 +274,7 @@ output_mode_valid(xf86OutputPtr output, DisplayModePtr pModes)
 static DisplayModePtr
 output_get_modes(xf86OutputPtr xf86output)
 {
-    struct hosted_output *output = xf86output->driver_private;
+    struct xwl_output *output = xf86output->driver_private;
     struct monitor_ranges *ranges;
     DisplayModePtr modes;
 
@@ -299,7 +299,7 @@ output_get_modes(xf86OutputPtr xf86output)
 static void
 output_destroy(xf86OutputPtr xf86output)
 {
-    struct hosted_output *output = xf86output->driver_private;
+    struct xwl_output *output = xf86output->driver_private;
 
     free(output);
 }
@@ -312,72 +312,72 @@ static const xf86OutputFuncsRec output_funcs = {
     .destroy	= output_destroy
 };
 
-struct hosted_output *
-hosted_output_create(struct hosted_screen *hosted_screen)
+struct xwl_output *
+xwl_output_create(struct xwl_screen *xwl_screen)
 {
-    struct hosted_output *hosted_output;
+    struct xwl_output *xwl_output;
     xf86OutputPtr xf86output;
     xf86CrtcPtr xf86crtc;
 
-    hosted_output = calloc(sizeof *hosted_output, 1);
-    if (hosted_output == NULL) {
+    xwl_output = calloc(sizeof *xwl_output, 1);
+    if (xwl_output == NULL) {
 	ErrorF("create_output ENOMEM");
 	return NULL;
     }
 
-    hosted_output->hosted_screen = hosted_screen;
-    hosted_output->width = hosted_screen->width = 800;
-    hosted_output->height = hosted_screen->height = 600;
+    xwl_output->xwl_screen = xwl_screen;
+    xwl_output->width = xwl_screen->width = 800;
+    xwl_output->height = xwl_screen->height = 600;
 
-    xf86output = xf86OutputCreate(hosted_screen->scrninfo,
-				  &output_funcs, "HOSTED-1");
-    xf86output->driver_private = hosted_output;
+    xf86output = xf86OutputCreate(xwl_screen->scrninfo,
+				  &output_funcs, "XWAYLAND-1");
+    xf86output->driver_private = xwl_output;
     xf86output->mm_width = 300;
     xf86output->mm_height = 240;
     xf86output->subpixel_order = SubPixelHorizontalRGB;
     xf86output->possible_crtcs = 1;
     xf86output->possible_clones = 1;
 
-    xf86crtc = xf86CrtcCreate(hosted_screen->scrninfo, &crtc_funcs);
-    xf86crtc->driver_private = hosted_output;
+    xf86crtc = xf86CrtcCreate(xwl_screen->scrninfo, &crtc_funcs);
+    xf86crtc->driver_private = xwl_output;
 
-    return hosted_output;
+    return xwl_output;
 }
 
 static void
-add_input_devices(struct hosted_screen *hosted_screen)
+add_input_devices(struct xwl_screen *xwl_screen)
 {
-    struct hosted_input_device *hosted_input_device;
+    struct xwl_input_device *xwl_input_device;
 
-    if (!hosted_screen->initialized)
+    if (!xwl_screen->initialized)
         return ;
 
-    list_for_each_entry(hosted_input_device,
-			&hosted_screen->input_device_list, link) {
-        if (hosted_input_device->pointer || hosted_input_device->keyboard)
+    list_for_each_entry(xwl_input_device,
+			&xwl_screen->input_device_list, link) {
+        if (xwl_input_device->pointer || xwl_input_device->keyboard)
             continue ;
-	input_init_pointer(hosted_input_device, hosted_screen);
-	input_init_keyboard(hosted_input_device, hosted_screen);
+	input_init_pointer(xwl_input_device, xwl_screen);
+	input_init_keyboard(xwl_input_device, xwl_screen);
     }
 }
 
-struct hosted_input_device *
-hosted_input_device_create(struct hosted_screen *hosted_screen)
+struct xwl_input_device *
+xwl_input_device_create(struct xwl_screen *xwl_screen)
 {
-    struct hosted_input_device *hosted_input_device;
+    struct xwl_input_device *xwl_input_device;
 
-    hosted_input_device = calloc(sizeof *hosted_input_device, 1);
-    if (hosted_input_device == NULL) {
+    xwl_input_device = calloc(sizeof *xwl_input_device, 1);
+    if (xwl_input_device == NULL) {
 	ErrorF("create_input ENOMEM");
 	return NULL;
     }
 
-    hosted_input_device->hosted_screen = hosted_screen;
-    list_add(&hosted_input_device->link, &hosted_screen->input_device_list);
+    xwl_input_device->xwl_screen = xwl_screen;
+    list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
 
-    add_input_devices(hosted_screen);
+    add_input_devices(xwl_screen);
 
-    return hosted_input_device;
+    return xwl_input_device;
 }
 
 static Bool
@@ -405,26 +405,26 @@ static void free_pixmap(void *data)
 }
 
 static void
-hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
+xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
 {
-    struct hosted_screen *hosted_screen = hosted_window->hosted_screen;
+    struct xwl_screen *xwl_screen = xwl_window->xwl_screen;
 
     /* We can safely destroy the buffer because we only use one buffer
-     * per surface in hosted model */
-    if (hosted_window->buffer)
-        wl_buffer_destroy(hosted_window->buffer);
+     * per surface in xwayland model */
+    if (xwl_window->buffer)
+        wl_buffer_destroy(xwl_window->buffer);
 
-    hosted_screen->driver->create_window_buffer(hosted_window, pixmap);
+    xwl_screen->driver->create_window_buffer(xwl_window, pixmap);
 
-    if (!hosted_window->buffer) {
+    if (!xwl_window->buffer) {
         ErrorF("failed to create buffer\n");
 	return;
     }
 
-    wl_surface_map_toplevel(hosted_window->surface);
-    wl_surface_attach(hosted_window->surface, hosted_window->buffer, 0, 0);
+    wl_surface_map_toplevel(xwl_window->surface);
+    wl_surface_attach(xwl_window->surface, xwl_window->buffer, 0, 0);
 
-    wl_display_sync_callback(hosted_screen->display, free_pixmap, pixmap);
+    wl_display_sync_callback(xwl_screen->display, free_pixmap, pixmap);
     pixmap->refcnt++;
 
     /*
@@ -439,31 +439,31 @@ hosted_window_attach(struct hosted_window *hosted_window, PixmapPtr pixmap)
 }
 
 static Bool
-hosted_create_window(WindowPtr window)
+xwl_create_window(WindowPtr window)
 {
     ScreenPtr screen = window->drawable.pScreen;
-    struct hosted_screen *hosted_screen;
+    struct xwl_screen *xwl_screen;
     Selection *selection;
     char buffer[32];
     int len, rc;
     Atom name;
     Bool ret;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    screen->CreateWindow = hosted_screen->CreateWindow;
+    screen->CreateWindow = xwl_screen->CreateWindow;
     ret = (*screen->CreateWindow)(window);
-    hosted_screen->CreateWindow = screen->CreateWindow;
-    screen->CreateWindow = hosted_create_window;
+    xwl_screen->CreateWindow = screen->CreateWindow;
+    screen->CreateWindow = xwl_create_window;
 
     /* First window is mapped, so now we can add input devices */
-    if (!hosted_screen->initialized) {
-        hosted_screen->initialized = 1;
-        add_input_devices(hosted_screen);
+    if (!xwl_screen->initialized) {
+        xwl_screen->initialized = 1;
+        add_input_devices(xwl_screen);
     }
 
-    if (!(hosted_screen->flags & HOSTED_FLAGS_ROOTLESS) ||
+    if (!(xwl_screen->flags & XWL_FLAGS_ROOTLESS) ||
 	window->parent != NULL)
 	return ret;
 
@@ -486,10 +486,10 @@ hosted_create_window(WindowPtr window)
 static void
 damage_report(DamagePtr pDamage, RegionPtr pRegion, void *data)
 {
-    struct hosted_window *hosted_window = data;
-    struct hosted_screen *hosted_screen = hosted_window->hosted_screen;
+    struct xwl_window *xwl_window = data;
+    struct xwl_screen *xwl_screen = xwl_window->xwl_screen;
 
-    list_add(&hosted_window->link, &hosted_screen->damage_window_list);
+    list_add(&xwl_window->link, &xwl_screen->damage_window_list);
 }
 
 static void
@@ -498,24 +498,24 @@ damage_destroy(DamagePtr pDamage, void *data)
 }
 
 static Bool
-hosted_realize_window(WindowPtr window)
+xwl_realize_window(WindowPtr window)
 {
     ScreenPtr screen = window->drawable.pScreen;
-    struct hosted_screen *hosted_screen;
-    struct hosted_window *hosted_window;
+    struct xwl_screen *xwl_screen;
+    struct xwl_window *xwl_window;
     VisualID visual;
     Bool ret;
     int i;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    screen->RealizeWindow = hosted_screen->RealizeWindow;
+    screen->RealizeWindow = xwl_screen->RealizeWindow;
     ret = (*screen->RealizeWindow)(window);
-    hosted_screen->RealizeWindow = hosted_screen->RealizeWindow;
-    screen->RealizeWindow = hosted_realize_window;
+    xwl_screen->RealizeWindow = xwl_screen->RealizeWindow;
+    screen->RealizeWindow = xwl_realize_window;
 
-    if (hosted_screen->flags & HOSTED_FLAGS_ROOTLESS) {
+    if (xwl_screen->flags & XWL_FLAGS_ROOTLESS) {
 	if (window->redirectDraw != RedirectDrawManual)
 	    return ret;
     } else {
@@ -523,12 +523,12 @@ hosted_realize_window(WindowPtr window)
 	    return ret;
     }
 
-    hosted_window = calloc(sizeof *hosted_window, 1);
-    hosted_window->hosted_screen = hosted_screen;
-    hosted_window->window = window;
-    hosted_window->surface =
-	wl_compositor_create_surface(hosted_screen->compositor);
-    if (hosted_window->surface == NULL) {
+    xwl_window = calloc(sizeof *xwl_window, 1);
+    xwl_window->xwl_screen = xwl_screen;
+    xwl_window->window = window;
+    xwl_window->surface =
+	wl_compositor_create_surface(xwl_screen->compositor);
+    if (xwl_window->surface == NULL) {
 	ErrorF("wl_display_create_surface failed\n");
 	return FALSE;
     }
@@ -539,96 +539,96 @@ hosted_realize_window(WindowPtr window)
 	    break;
 
     if (screen->visuals[i].nplanes == 32)
-	hosted_window->visual = hosted_screen->premultiplied_argb_visual;
+	xwl_window->visual = xwl_screen->premultiplied_argb_visual;
     else
-	hosted_window->visual = hosted_screen->rgb_visual;
+	xwl_window->visual = xwl_screen->rgb_visual;
 
-    wl_surface_set_user_data(hosted_window->surface, hosted_window);
-    hosted_window_attach(hosted_window, (*screen->GetWindowPixmap)(window));
+    wl_surface_set_user_data(xwl_window->surface, xwl_window);
+    xwl_window_attach(xwl_window, (*screen->GetWindowPixmap)(window));
 
     dixSetPrivate(&window->devPrivates,
-		  &hosted_window_private_key, hosted_window);
+		  &xwl_window_private_key, xwl_window);
 
-    hosted_window->damage =
+    xwl_window->damage =
 	DamageCreate(damage_report, damage_destroy, DamageReportNonEmpty,
-		     FALSE, screen, hosted_window);
-    DamageRegister(&window->drawable, hosted_window->damage);
+		     FALSE, screen, xwl_window);
+    DamageRegister(&window->drawable, xwl_window->damage);
 
     return ret;
 }
 
 static Bool
-hosted_unrealize_window(WindowPtr window)
+xwl_unrealize_window(WindowPtr window)
 {
     ScreenPtr screen = window->drawable.pScreen;
-    struct hosted_screen *hosted_screen;
-    struct hosted_window *hosted_window;
+    struct xwl_screen *xwl_screen;
+    struct xwl_window *xwl_window;
     Bool ret;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    screen->UnrealizeWindow = hosted_screen->UnrealizeWindow;
+    screen->UnrealizeWindow = xwl_screen->UnrealizeWindow;
     ret = (*screen->UnrealizeWindow)(window);
-    hosted_screen->UnrealizeWindow = screen->UnrealizeWindow;
-    screen->UnrealizeWindow = hosted_unrealize_window;
+    xwl_screen->UnrealizeWindow = screen->UnrealizeWindow;
+    screen->UnrealizeWindow = xwl_unrealize_window;
 
-    hosted_window =
-	dixLookupPrivate(&window->devPrivates, &hosted_window_private_key);
-    if (hosted_window) {
-        if (hosted_window->buffer)
-            wl_buffer_destroy(hosted_window->buffer);
-	wl_surface_destroy(hosted_window->surface);
-	free(hosted_window);
-	dixSetPrivate(&window->devPrivates, &hosted_window_private_key, NULL);
+    xwl_window =
+	dixLookupPrivate(&window->devPrivates, &xwl_window_private_key);
+    if (xwl_window) {
+        if (xwl_window->buffer)
+            wl_buffer_destroy(xwl_window->buffer);
+	wl_surface_destroy(xwl_window->surface);
+	free(xwl_window);
+	dixSetPrivate(&window->devPrivates, &xwl_window_private_key, NULL);
     }
 
     return ret;
 }
 
 static void
-hosted_set_window_pixmap(WindowPtr window, PixmapPtr pixmap)
+xwl_set_window_pixmap(WindowPtr window, PixmapPtr pixmap)
 {
     ScreenPtr screen = window->drawable.pScreen;
-    struct hosted_screen *hosted_screen;
-    struct hosted_window *hosted_window;
+    struct xwl_screen *xwl_screen;
+    struct xwl_window *xwl_window;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    screen->SetWindowPixmap = hosted_screen->SetWindowPixmap;
+    screen->SetWindowPixmap = xwl_screen->SetWindowPixmap;
     (*screen->SetWindowPixmap)(window, pixmap);
-    hosted_screen->SetWindowPixmap = screen->SetWindowPixmap;
-    screen->SetWindowPixmap = hosted_set_window_pixmap;
+    xwl_screen->SetWindowPixmap = screen->SetWindowPixmap;
+    screen->SetWindowPixmap = xwl_set_window_pixmap;
 
-    hosted_window =
-	dixLookupPrivate(&window->devPrivates, &hosted_window_private_key);
-    if (hosted_window)
-	hosted_window_attach(hosted_window, pixmap);
+    xwl_window =
+	dixLookupPrivate(&window->devPrivates, &xwl_window_private_key);
+    if (xwl_window)
+	xwl_window_attach(xwl_window, pixmap);
 }
 
 static void
-hosted_move_window(WindowPtr window, int x, int y,
+xwl_move_window(WindowPtr window, int x, int y,
 		   WindowPtr sibling, VTKind kind)
 {
     ScreenPtr screen = window->drawable.pScreen;
-    struct hosted_screen *hosted_screen;
-    struct hosted_window *hosted_window;
+    struct xwl_screen *xwl_screen;
+    struct xwl_window *xwl_window;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    screen->MoveWindow = hosted_screen->MoveWindow;
+    screen->MoveWindow = xwl_screen->MoveWindow;
     (*screen->MoveWindow)(window, x, y, sibling, kind);
-    hosted_screen->MoveWindow = screen->MoveWindow;
-    screen->MoveWindow = hosted_move_window;
+    xwl_screen->MoveWindow = screen->MoveWindow;
+    screen->MoveWindow = xwl_move_window;
 
-    hosted_window =
-	dixLookupPrivate(&window->devPrivates, &hosted_window_private_key);
-    if (hosted_window == NULL)
+    xwl_window =
+	dixLookupPrivate(&window->devPrivates, &xwl_window_private_key);
+    if (xwl_window == NULL)
 	return;
 
-    wl_surface_map_toplevel(hosted_window->surface);
+    wl_surface_map_toplevel(xwl_window->surface);
 }
 
 static void
@@ -671,9 +671,9 @@ expand_source_and_mask(CursorPtr cursor, void *data)
 }
 
 static Bool
-hosted_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
+xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 {
-    struct hosted_screen *hosted_screen;
+    struct xwl_screen *xwl_screen;
     int size;
     char filename[] = "/tmp/wayland-shm-XXXXXX";
     int fd;
@@ -681,8 +681,8 @@ hosted_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
     struct wl_visual *visual;
     void *data;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
     size = cursor->bits->width * cursor->bits->height * 4;
 
     fd = mkstemp(filename);
@@ -711,256 +711,258 @@ hosted_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 	expand_source_and_mask(cursor, data);
     munmap(data, size);
 
-    visual = hosted_screen->argb_visual;
-    buffer = wl_shm_create_buffer(hosted_screen->shm, fd,
+    visual = xwl_screen->argb_visual;
+    buffer = wl_shm_create_buffer(xwl_screen->shm, fd,
 				  cursor->bits->width, cursor->bits->height,
 				  cursor->bits->width * 4, visual);
     close(fd);
 
-    dixSetPrivate(&cursor->devPrivates, &hosted_cursor_private_key, buffer);
+    dixSetPrivate(&cursor->devPrivates, &xwl_cursor_private_key, buffer);
 
     return TRUE;
 }
 
 static Bool
-hosted_unrealize_cursor(DeviceIntPtr device,
+xwl_unrealize_cursor(DeviceIntPtr device,
 			ScreenPtr screen, CursorPtr cursor)
 {
     struct wl_buffer *buffer;
 
-    buffer = dixGetPrivate(&cursor->devPrivates, &hosted_cursor_private_key);
+    buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
     wl_buffer_destroy(buffer);
 
     return TRUE;
 }
 
 static void
-hosted_set_cursor(DeviceIntPtr device,
+xwl_set_cursor(DeviceIntPtr device,
 		  ScreenPtr screen, CursorPtr cursor, int x, int y)
 {
-    struct hosted_input_device *hosted_input_device;
+    struct xwl_input_device *xwl_input_device;
     struct wl_buffer *buffer;
 
     if (!cursor)
 	return;
 
-    hosted_input_device =
-	dixGetPrivate(&device->devPrivates, &hosted_device_private_key);
-    if (!hosted_input_device)
+    xwl_input_device =
+	dixGetPrivate(&device->devPrivates, &xwl_device_private_key);
+    if (!xwl_input_device)
 	return;
 
-    buffer = dixGetPrivate(&cursor->devPrivates, &hosted_cursor_private_key);
+    buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
-    wl_input_device_attach(hosted_input_device->input_device,
-			   hosted_input_device->time, buffer,
+    wl_input_device_attach(xwl_input_device->input_device,
+			   xwl_input_device->time, buffer,
 			   cursor->bits->xhot, cursor->bits->yhot);
 }
 
 static void
-hosted_move_cursor(DeviceIntPtr device, ScreenPtr screen, int x, int y)
+xwl_move_cursor(DeviceIntPtr device, ScreenPtr screen, int x, int y)
 {
 }
 
 static Bool
-hosted_device_cursor_initialize(DeviceIntPtr device, ScreenPtr screen)
+xwl_device_cursor_initialize(DeviceIntPtr device, ScreenPtr screen)
 {
-    struct hosted_screen *hosted_screen;
+    struct xwl_screen *xwl_screen;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    return hosted_screen->sprite_funcs->DeviceCursorInitialize(device,
+    return xwl_screen->sprite_funcs->DeviceCursorInitialize(device,
 							       screen);
 }
 
 static void
-hosted_device_cursor_cleanup(DeviceIntPtr device, ScreenPtr screen)
+xwl_device_cursor_cleanup(DeviceIntPtr device, ScreenPtr screen)
 {
-    struct hosted_screen *hosted_screen;
+    struct xwl_screen *xwl_screen;
 
-    hosted_screen = dixLookupPrivate(&screen->devPrivates,
-				     &hosted_screen_private_key);
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				     &xwl_screen_private_key);
 
-    hosted_screen->sprite_funcs->DeviceCursorCleanup(device, screen);
+    xwl_screen->sprite_funcs->DeviceCursorCleanup(device, screen);
 }
 
-static miPointerSpriteFuncRec hosted_pointer_sprite_funcs =
+static miPointerSpriteFuncRec xwl_pointer_sprite_funcs =
 {
-    hosted_realize_cursor,
-    hosted_unrealize_cursor,
-    hosted_set_cursor,
-    hosted_move_cursor,
-    hosted_device_cursor_initialize,
-    hosted_device_cursor_cleanup
+    xwl_realize_cursor,
+    xwl_unrealize_cursor,
+    xwl_set_cursor,
+    xwl_move_cursor,
+    xwl_device_cursor_initialize,
+    xwl_device_cursor_cleanup
 };
 
 int
-hosted_screen_init(struct hosted_screen *hosted_screen, ScreenPtr screen)
+xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 {
     miPointerScreenPtr pointer_priv;
 
-    hosted_screen->screen = screen;
+    xwl_screen->screen = screen;
 
-    if (!dixRegisterPrivateKey(&hosted_screen_private_key, PRIVATE_SCREEN, 0))
+    if (!dixRegisterPrivateKey(&xwl_screen_private_key, PRIVATE_SCREEN, 0))
 	return BadAlloc;
 
-    if (!dixRegisterPrivateKey(&hosted_window_private_key, PRIVATE_WINDOW, 0))
+    if (!dixRegisterPrivateKey(&xwl_window_private_key, PRIVATE_WINDOW, 0))
 	return BadAlloc;
 
-    if (!dixRegisterPrivateKey(&hosted_cursor_private_key, PRIVATE_CURSOR, 0))
+    if (!dixRegisterPrivateKey(&xwl_cursor_private_key, PRIVATE_CURSOR, 0))
 	return BadAlloc;
 
-    if (!dixRegisterPrivateKey(&hosted_device_private_key, PRIVATE_DEVICE, 0))
+    if (!dixRegisterPrivateKey(&xwl_device_private_key, PRIVATE_DEVICE, 0))
 	return BadAlloc;
 
     dixSetPrivate(&screen->devPrivates,
-		  &hosted_screen_private_key, hosted_screen);
+		  &xwl_screen_private_key, xwl_screen);
 
-    hosted_screen->CreateWindow = screen->CreateWindow;
-    screen->CreateWindow = hosted_create_window;
+    xwl_screen->CreateWindow = screen->CreateWindow;
+    screen->CreateWindow = xwl_create_window;
 
-    hosted_screen->RealizeWindow = screen->RealizeWindow;
-    screen->RealizeWindow = hosted_realize_window;
+    xwl_screen->RealizeWindow = screen->RealizeWindow;
+    screen->RealizeWindow = xwl_realize_window;
 
-    hosted_screen->UnrealizeWindow = screen->UnrealizeWindow;
-    screen->UnrealizeWindow = hosted_unrealize_window;
+    xwl_screen->UnrealizeWindow = screen->UnrealizeWindow;
+    screen->UnrealizeWindow = xwl_unrealize_window;
 
-    hosted_screen->SetWindowPixmap = screen->SetWindowPixmap;
-    screen->SetWindowPixmap = hosted_set_window_pixmap;
+    xwl_screen->SetWindowPixmap = screen->SetWindowPixmap;
+    screen->SetWindowPixmap = xwl_set_window_pixmap;
 
-    hosted_screen->MoveWindow = screen->MoveWindow;
-    screen->MoveWindow = hosted_move_window;
+    xwl_screen->MoveWindow = screen->MoveWindow;
+    screen->MoveWindow = xwl_move_window;
 
     pointer_priv = dixLookupPrivate(&screen->devPrivates, miPointerScreenKey);
-    hosted_screen->sprite_funcs = pointer_priv->spriteFuncs;
-    pointer_priv->spriteFuncs = &hosted_pointer_sprite_funcs;
+    xwl_screen->sprite_funcs = pointer_priv->spriteFuncs;
+    pointer_priv->spriteFuncs = &xwl_pointer_sprite_funcs;
 
     return Success;
 }
 
-struct hosted_screen *
-hosted_screen_pre_init(ScrnInfoPtr scrninfo,
-		       uint32_t flags, struct hosted_driver *driver)
+struct xwl_screen *
+xwl_screen_pre_init(ScrnInfoPtr scrninfo,
+		       uint32_t flags, struct xwl_driver *driver)
 {
-    struct hosted_screen *hosted_screen;
+    struct xwl_screen *xwl_screen;
 
-    hosted_screen = calloc(sizeof *hosted_screen, 1);
-    if (hosted_screen == NULL) {
+    xwl_screen = calloc(sizeof *xwl_screen, 1);
+    if (xwl_screen == NULL) {
 	ErrorF("calloc failed\n");
 	return NULL;
     }
 
-    list_init(&hosted_screen->input_device_list);
-    list_init(&hosted_screen->damage_window_list);
-    hosted_screen->scrninfo = scrninfo;
-    hosted_screen->driver = driver;
-    hosted_screen->flags = flags;
+    list_init(&xwl_screen->input_device_list);
+    list_init(&xwl_screen->damage_window_list);
+    xwl_screen->scrninfo = scrninfo;
+    xwl_screen->driver = driver;
+    xwl_screen->flags = flags;
 
     if (xorgRootless)
-	hosted_screen->flags |= HOSTED_FLAGS_ROOTLESS;
+	xwl_screen->flags |= XWL_FLAGS_ROOTLESS;
 
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
 
-    if (wayland_screen_init(hosted_screen, driver->use_drm) != Success)
+    if (wayland_screen_init(xwl_screen, driver->use_drm) != Success)
 	return NULL;
 
     xf86InitialConfiguration(scrninfo, TRUE);
 
-    return hosted_screen;
+    return xwl_screen;
 }
 
-int hosted_screen_get_drm_fd(struct hosted_screen *hosted_screen)
+int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
 {
-    return hosted_screen->drm_fd;
+    return xwl_screen->drm_fd;
 }
 
 
 #ifdef WITH_LIBDRM
 int
-hosted_create_window_buffer_drm(struct hosted_window *hosted_window,
+xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 				PixmapPtr pixmap, uint32_t name)
 {
-    hosted_window->buffer =
-      wl_drm_create_buffer(hosted_window->hosted_screen->drm,
+    xwl_window->buffer =
+      wl_drm_create_buffer(xwl_window->xwl_screen->drm,
 			   name,
 			   pixmap->drawable.width,
 			   pixmap->drawable.height,
 			   pixmap->devKind,
-			   hosted_window->visual);
+			   xwl_window->visual);
 
-    return hosted_window->buffer ? Success : BadDrawable;
+    return xwl_window->buffer ? Success : BadDrawable;
 }
 #endif
 
 int
-hosted_create_window_buffer_shm(struct hosted_window *hosted_window,
+xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
 				PixmapPtr pixmap, int fd)
 {
-    hosted_window->buffer =
-      wl_shm_create_buffer(hosted_window->hosted_screen->shm, fd,
+    xwl_window->buffer =
+      wl_shm_create_buffer(xwl_window->xwl_screen->shm, fd,
 			   pixmap->drawable.width, pixmap->drawable.height,
-			   pixmap->drawable.width * 4, hosted_window->visual);
+			   pixmap->drawable.width * 4, xwl_window->visual);
 
-    return hosted_window->buffer ? Success : BadDrawable;
+    return xwl_window->buffer ? Success : BadDrawable;
 }
 
-void hosted_screen_destroy(struct hosted_screen *hosted_screen)
+void xwl_screen_destroy(struct xwl_screen *xwl_screen)
 {
-    wl_display_destroy(hosted_screen->display);
-    if (hosted_screen->drm_fd >= 0)
-        close(hosted_screen->drm_fd);
-    free(hosted_screen);
+    wl_display_destroy(xwl_screen->display);
+    if (xwl_screen->drm_fd >= 0)
+        close(xwl_screen->drm_fd);
+    free(xwl_screen);
 }
 
-int hosted_screen_authenticate(struct hosted_screen *hosted_screen,
+int xwl_screen_authenticate(struct xwl_screen *xwl_screen,
 			       uint32_t magic)
 {
-    hosted_screen->authenticated = 0;
+    xwl_screen->authenticated = 0;
 #ifdef WITH_LIBDRM
-    if (hosted_screen->drm)
-        wl_drm_authenticate (hosted_screen->drm, magic);
+    if (xwl_screen->drm)
+        wl_drm_authenticate (xwl_screen->drm, magic);
 #endif
-    wl_display_iterate (hosted_screen->display, WL_DISPLAY_WRITABLE);
-    while (!hosted_screen->authenticated)
-	wl_display_iterate (hosted_screen->display, WL_DISPLAY_READABLE);
+    wl_display_iterate (xwl_screen->display, WL_DISPLAY_WRITABLE);
+    while (!xwl_screen->authenticated)
+	wl_display_iterate (xwl_screen->display, WL_DISPLAY_READABLE);
 
     return Success;
 }
 
 /* DDX driver must call this after submitting the rendering */
-void hosted_screen_post_damage(struct hosted_screen *hosted_screen)
+void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 {
-    struct hosted_window *hosted_window;
-    struct hosted_backend *backend = hosted_screen->backend;
+    struct xwl_window *xwl_window;
     RegionPtr region;
     BoxPtr box;
     int count, i;
 
-    list_for_each_entry(hosted_window,
-			&hosted_screen->damage_window_list, link) {
+    list_for_each_entry(xwl_window,
+			&xwl_screen->damage_window_list, link) {
 
-	region = DamageRegion(hosted_window->damage);
+	region = DamageRegion(xwl_window->damage);
 	count = RegionNumRects(region);
 	for (i = 0; i < count; i++) {
 	    box = &RegionRects(region)[i];
-	    backend->flush(hosted_window, box);
+	    wl_surface_damage(xwl_window->surface,
+			      box->x1, box->y1,
+			      box->x2 - box->x1,
+			      box->y2 - box->y1);
 	}
-	DamageEmpty(hosted_window->damage);
+	DamageEmpty(xwl_window->damage);
     }
 
-    list_init(&hosted_screen->damage_window_list);
+    list_init(&xwl_screen->damage_window_list);
 }
 
 static pointer
-hosted_setup(pointer module, pointer opts, int *errmaj, int *errmin)
+xwl_setup(pointer module, pointer opts, int *errmaj, int *errmin)
 {
     return (pointer) 1;
 }
 
-static XF86ModuleVersionInfo hosted_version_info = {
-    "hosted",
+static XF86ModuleVersionInfo xwl_version_info = {
+    "xwayland",
     MODULEVENDORSTRING,
     MODINFOSTRING1,
     MODINFOSTRING2,
@@ -972,14 +974,14 @@ static XF86ModuleVersionInfo hosted_version_info = {
     { 0, 0, 0, 0 }
 };
 
-_X_EXPORT const XF86ModuleData hostedModuleData = {
-    &hosted_version_info,
-    &hosted_setup,
+_X_EXPORT const XF86ModuleData xwaylandModuleData = {
+    &xwl_version_info,
+    &xwl_setup,
     NULL
 };
 
 int
-hosted_version(void)
+xwl_version(void)
 {
-    return hosted_version_info.minorversion;
+    return xwl_version_info.minorversion;
 }

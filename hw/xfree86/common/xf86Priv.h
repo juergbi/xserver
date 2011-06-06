@@ -92,7 +92,7 @@ extern _X_EXPORT const char *xf86VisualNames[];
 extern _X_EXPORT int xf86Verbose;       /* verbosity level */
 extern _X_EXPORT int xf86LogVerbose;    /* log file verbosity level */
 extern _X_EXPORT Bool xorgHWAccess;
-extern _X_EXPORT Bool xorgHosted;
+extern _X_EXPORT Bool xorgWayland;
 extern _X_EXPORT Bool xorgRootless;
 
 extern _X_EXPORT RootWinPropPtr *xf86RegisteredPropertiesTable;

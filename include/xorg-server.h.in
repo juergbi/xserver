@@ -213,6 +213,6 @@
 #endif
 
 /* Building Xorg server. */
-#undef XORG_HOSTED
+#undef XORG_WAYLAND
 
 #endif /* _XORG_SERVER_H_ */

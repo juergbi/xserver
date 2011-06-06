@@ -23,11 +23,11 @@
  * SOFTWARE.
  */
 
-#ifndef _HOSTED_PRIVATE_H_
-#define _HOSTED_PRIVATE_H_
+#ifndef _XWAYLAND_PRIVATE_H_
+#define _XWAYLAND_PRIVATE_H_
 
-struct hosted_window {
-    struct hosted_screen	*hosted_screen;
+struct xwl_window {
+    struct xwl_screen		*xwl_screen;
     struct wl_surface		*surface;
     struct wl_visual		*visual;
     struct wl_buffer		*buffer;
@@ -36,9 +36,8 @@ struct hosted_window {
     struct list			 link;
 };
 
-struct hosted_screen {
-    struct hosted_driver	*driver;
-    struct hosted_backend	*backend;
+struct xwl_screen {
+    struct xwl_driver		*driver;
     ScreenPtr			 screen;
     ScrnInfoPtr			 scrninfo;
     int				 drm_fd;
@@ -70,9 +69,9 @@ struct hosted_screen {
     miPointerSpriteFuncPtr	 sprite_funcs;
 };
 
-struct hosted_output {
+struct xwl_output {
     struct wl_output		*output;
-    struct hosted_screen	*hosted_screen;
+    struct xwl_screen		*xwl_screen;
     int32_t			 x, y, width, height;
     xf86Monitor			 monitor;
 };
@@ -80,31 +79,27 @@ struct hosted_output {
 
 #define MODIFIER_META 0x01
 
-struct hosted_input_device {
+struct xwl_input_device {
     DeviceIntPtr		 pointer;
     DeviceIntPtr		 keyboard;
-    struct hosted_screen	*hosted_screen;
+    struct xwl_screen		*xwl_screen;
     struct wl_input_device	*input_device;
     int				 grab;
-    struct hosted_window	*focus_window;
+    struct xwl_window		*focus_window;
     int32_t			 grab_x, grab_y;
     uint32_t			 modifiers;
     uint32_t			 time;
     struct list			 link;
 };
 
-struct hosted_backend {
-    void (*flush)(struct hosted_window *window, BoxPtr box);
-};
+struct xwl_output *
+xwl_output_create(struct xwl_screen *xwl_screen);
+struct xwl_input_device *
+xwl_input_device_create(struct xwl_screen *xwl_screen);
 
-struct hosted_output *
-hosted_output_create(struct hosted_screen *hosted_screen);
-struct hosted_input_device *
-hosted_input_device_create(struct hosted_screen *hosted_screen);
+int wayland_screen_init(struct xwl_screen *screen, int use_drm);
+int x11_screen_init(struct xwl_screen *screen);
 
-int wayland_screen_init(struct hosted_screen *screen, int use_drm);
-int x11_screen_init(struct hosted_screen *screen);
+int wayland_drm_screen_init(struct xwl_screen *screen);
 
-int wayland_drm_screen_init(struct hosted_screen *screen);
-
-#endif /* _HOSTED_H_ */
+#endif /* _XWAYLAND_PRIVATE_H_ */

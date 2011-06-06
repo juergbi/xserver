@@ -1008,12 +1008,12 @@ if test "x$COMPOSITE" = xyes; then
 	COMPOSITE_INC='-I$(top_srcdir)/composite'
 fi
 
-HOSTED=yes
-AM_CONDITIONAL(HOSTED, [test "x$HOSTED" = xyes])
-if test "x$HOSTED" = xyes; then
-	AC_DEFINE(XORG_HOSTED, 1, [Support hosted mode])
+WAYLAND=yes
+AM_CONDITIONAL(WAYLAND, [test "x$WAYLAND" = xyes])
+if test "x$WAYLAND" = xyes; then
+	AC_DEFINE(XORG_WAYLAND, 1, [Support wayland mode])
 	REQUIRED_MODULES="$REQUIRED_MODULES wayland-client"
-	WAYLAND_SCANNER_RULES(['$(top_srcdir)/hw/xfree86/hosted'])
+	WAYLAND_SCANNER_RULES(['$(top_srcdir)/hw/xfree86/xwayland'])
 fi
 
 if test "x$MITSHM" = xauto; then
@@ -1112,7 +1112,7 @@ case "$DRI2,$HAVE_DRI2PROTO" in
 esac
 AM_CONDITIONAL(DRI2, test "x$DRI2" = xyes)
 
-if test "x$DRI" = xyes || test "x$DRI2" = xyes || test "x$HOSTED" = xyes || test "x$CONFIG_UDEV_KMS" = xyes; then
+if test "x$DRI" = xyes || test "x$DRI2" = xyes || test "x$XWAYLAND" = xyes || test "x$CONFIG_UDEV_KMS" = xyes; then
 	if test "x$DRM" = xyes; then
 		AC_DEFINE(WITH_LIBDRM, 1, [Building with libdrm support])
 		PKG_CHECK_MODULES([LIBDRM], $LIBDRM)
@@ -2270,7 +2270,7 @@ hw/xfree86/dixmods/Makefile
 hw/xfree86/doc/Makefile
 hw/xfree86/dri/Makefile
 hw/xfree86/dri2/Makefile
-hw/xfree86/hosted/Makefile
+hw/xfree86/xwayland/Makefile
 hw/xfree86/exa/Makefile
 hw/xfree86/exa/man/Makefile
 hw/xfree86/fbdevhw/Makefile

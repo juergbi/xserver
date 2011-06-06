@@ -23,52 +23,52 @@
  * SOFTWARE.
  */
 
-#ifndef _HOSTED_H_
-#define _HOSTED_H_
+#ifndef _XWAYLAND_H_
+#define _XWAYLAND_H_
 
-#define HOSTED_VERSION 2
+#define XWL_VERSION 2
 
-struct hosted_window;
-struct hosted_screen;
+struct xwl_window;
+struct xwl_screen;
 
-struct hosted_driver {
+struct xwl_driver {
     int version;
     int use_drm;
-    int (*create_window_buffer)(struct hosted_window *hosted_window,
+    int (*create_window_buffer)(struct xwl_window *xwl_window,
                                 PixmapPtr pixmap);
 };
 
-#define HOSTED_FLAGS_ROOTLESS 0x01
+#define XWL_FLAGS_ROOTLESS 0x01
 
 extern _X_EXPORT int
-hosted_version(void);
+xwl_version(void);
 
-extern _X_EXPORT struct hosted_screen *
-hosted_screen_pre_init(ScrnInfoPtr scrninfo,
-		       uint32_t flags, struct hosted_driver *driver);
-
-extern _X_EXPORT int
-hosted_screen_init(struct hosted_screen *hosted_screen, ScreenPtr screen);
+extern _X_EXPORT struct xwl_screen *
+xwl_screen_pre_init(ScrnInfoPtr scrninfo,
+		    uint32_t flags, struct xwl_driver *driver);
 
 extern _X_EXPORT int
-hosted_screen_get_drm_fd(struct hosted_screen *hosted_screen);
+xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen);
+
+extern _X_EXPORT int
+xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT void
-hosted_screen_destroy(struct hosted_screen *hosted_screen);
+xwl_screen_destroy(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT void
-hosted_screen_post_damage(struct hosted_screen *hosted_screen);
+xwl_screen_post_damage(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT int
-hosted_screen_authenticate(struct hosted_screen *hosted_screen,
-			   uint32_t magic);
+xwl_screen_authenticate(struct xwl_screen *xwl_screen,
+			uint32_t magic);
 
 extern _X_EXPORT int
-hosted_create_window_buffer_drm(struct hosted_window *hosted_window,
-                                PixmapPtr pixmap, uint32_t name);
+xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
+			     PixmapPtr pixmap, uint32_t name);
 
 extern _X_EXPORT int
-hosted_create_window_buffer_shm(struct hosted_window *hosted_window,
-                                PixmapPtr pixmap, int fd);
+xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
+			     PixmapPtr pixmap, int fd);
 
-#endif /* _HOSTED_H_ */
+#endif /* _XWAYLAND_H_ */
