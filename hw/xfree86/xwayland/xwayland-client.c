@@ -117,6 +117,9 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
 
     xwl_input_device->time = time;
 
+    if (!xwl_input_device->focus_window)
+	return ;
+
     dx = xwl_input_device->focus_window->window->drawable.x;
     dy = xwl_input_device->focus_window->window->drawable.y;
     xf86PostMotionEvent(xwl_input_device->pointer,
@@ -328,8 +331,9 @@ wayland_screen_init(struct xwl_screen *xwl_screen, int use_drm)
     }
 
     /* Set up listener so we'll catch all events. */
-    wl_display_add_global_listener(xwl_screen->display,
-				   global_handler, xwl_screen);
+    xwl_screen->global_listener =
+	    wl_display_add_global_listener(xwl_screen->display,
+					   global_handler, xwl_screen);
 
     /* Process connection events. */
     wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
@@ -366,6 +370,72 @@ wayland_screen_init(struct xwl_screen *xwl_screen, int use_drm)
 		    exit(1);
 	    }
     }
+
+    return Success;
+}
+
+int
+wayland_screen_close(struct xwl_screen *xwl_screen)
+{
+    struct xwl_input_device *xwl_input_device, *itmp;
+    struct xwl_window *xwl_window, *wtmp;
+
+    wl_display_remove_global_listener(xwl_screen->display,
+				      xwl_screen->global_listener);
+
+    if (xwl_screen->drm_fd >= 0)
+        close(xwl_screen->drm_fd);
+    free(xwl_screen->device_name);
+
+    list_for_each_entry_safe(xwl_input_device, itmp,
+			     &xwl_screen->input_device_list, link) {
+	wl_input_device_destroy(xwl_input_device->input_device);
+	free(xwl_input_device);
+    }
+    list_for_each_entry_safe(xwl_window, wtmp,
+			     &xwl_screen->window_list, link) {
+	wl_buffer_destroy(xwl_window->buffer);
+	wl_surface_destroy(xwl_window->surface);
+	free(xwl_window);
+    }
+
+#ifdef WITH_LIBDRM
+    if (xwl_screen->drm)
+	wl_drm_destroy(xwl_screen->drm);
+#endif
+    if (xwl_screen->shm)
+	wl_shm_destroy(xwl_screen->shm);
+    if (xwl_screen->argb_visual)
+	wl_visual_destroy(xwl_screen->argb_visual);
+    if (xwl_screen->rgb_visual)
+	wl_visual_destroy(xwl_screen->rgb_visual);
+    if (xwl_screen->argb_visual)
+	wl_visual_destroy(xwl_screen->premultiplied_argb_visual);
+    if (xwl_screen->compositor)
+	wl_compositor_destroy(xwl_screen->compositor);
+    if (xwl_screen->display) {
+	RemoveGeneralSocket(xwl_screen->wayland_fd);
+	wl_display_destroy(xwl_screen->display);
+    }
+    //damage_window_list
+
+    xwl_screen->drm_fd = -1;
+    xwl_screen->wayland_fd = -1;
+    xwl_screen->display = NULL;
+    xwl_screen->compositor = NULL;
+    xwl_screen->drm = NULL;
+    xwl_screen->shm = NULL;
+    xwl_screen->argb_visual = NULL;
+    xwl_screen->rgb_visual = NULL;
+    xwl_screen->premultiplied_argb_visual = NULL;
+    xwl_screen->mask = 0;
+    xwl_screen->device_name = NULL;
+    xwl_screen->authenticated = 0;
+    list_init(&xwl_screen->input_device_list);
+    list_init(&xwl_screen->damage_window_list);
+    list_init(&xwl_screen->window_list);
+    xwl_screen->root_x = 0;
+    xwl_screen->root_y = 0;
 
     return Success;
 }

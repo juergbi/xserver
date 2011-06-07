@@ -54,6 +54,9 @@ extern _X_EXPORT int
 xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT void
+xwl_screen_close(struct xwl_screen *xwl_screen);
+
+extern _X_EXPORT void
 xwl_screen_destroy(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT void

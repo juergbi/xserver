@@ -120,8 +120,8 @@ input_init_pointer(struct xwl_input_device *d, struct xwl_screen *screen)
     AssignTypeAndName(device, atom, name);
 
     device->coreEvents = TRUE;
-    device->type = MASTER_POINTER;
-    device->spriteInfo->spriteOwner = TRUE;
+    device->type = SLAVE;
+    device->spriteInfo->spriteOwner = FALSE;
 
     labels[0] = MakeAtom("x", 1, TRUE);
     labels[1] = MakeAtom("y", 1, TRUE);
@@ -169,7 +169,7 @@ input_init_keyboard(struct xwl_input_device *d,
     AssignTypeAndName(device, atom, name);
 
     device->coreEvents = TRUE;
-    device->type = MASTER_KEYBOARD;
+    device->type = SLAVE;
     device->spriteInfo->spriteOwner = FALSE;
 
     rmlvo.rules = "evdev";
@@ -353,6 +353,7 @@ input_init_devices(struct xwl_input_device *xwl_input_device)
     EnableDevice(xwl_input_device->pointer, TRUE);
     EnableDevice(xwl_input_device->keyboard, TRUE);
 }
+
 static void
 add_input_device(struct xwl_input_device *xwl_input_device)
 {
@@ -511,7 +512,7 @@ damage_report(DamagePtr pDamage, RegionPtr pRegion, void *data)
     struct xwl_window *xwl_window = data;
     struct xwl_screen *xwl_screen = xwl_window->xwl_screen;
 
-    list_add(&xwl_window->link, &xwl_screen->damage_window_list);
+    list_add(&xwl_window->link_damage, &xwl_screen->damage_window_list);
 }
 
 static void
@@ -576,6 +577,8 @@ xwl_realize_window(WindowPtr window)
 		     FALSE, screen, xwl_window);
     DamageRegister(&window->drawable, xwl_window->damage);
 
+    list_add(&xwl_window->link, &xwl_screen->window_list);
+    list_init(&xwl_window->link_damage);
     return ret;
 }
 
@@ -585,10 +588,21 @@ xwl_unrealize_window(WindowPtr window)
     ScreenPtr screen = window->drawable.pScreen;
     struct xwl_screen *xwl_screen;
     struct xwl_window *xwl_window;
+    struct xwl_input_device *xwl_input_device;
     Bool ret;
 
     xwl_screen = dixLookupPrivate(&screen->devPrivates,
 				     &xwl_screen_private_key);
+
+    list_for_each_entry(xwl_input_device,
+			&xwl_screen->input_device_list, link) {
+	if (!xwl_input_device->focus_window)
+	    continue ;
+	if (xwl_input_device->focus_window->window == window) {
+	    xwl_input_device->focus_window = NULL;
+	    SetDeviceRedirectWindow(xwl_input_device->pointer, PointerRootWin);
+	}
+    }
 
     screen->UnrealizeWindow = xwl_screen->UnrealizeWindow;
     ret = (*screen->UnrealizeWindow)(window);
@@ -597,13 +611,16 @@ xwl_unrealize_window(WindowPtr window)
 
     xwl_window =
 	dixLookupPrivate(&window->devPrivates, &xwl_window_private_key);
-    if (xwl_window) {
-        if (xwl_window->buffer)
-            wl_buffer_destroy(xwl_window->buffer);
-	wl_surface_destroy(xwl_window->surface);
-	free(xwl_window);
-	dixSetPrivate(&window->devPrivates, &xwl_window_private_key, NULL);
-    }
+    if (!xwl_window)
+	return ret;
+
+    if (xwl_window->buffer)
+	wl_buffer_destroy(xwl_window->buffer);
+    wl_surface_destroy(xwl_window->surface);
+    list_del(&xwl_window->link);
+    list_del(&xwl_window->link_damage);
+    free(xwl_window);
+    dixSetPrivate(&window->devPrivates, &xwl_window_private_key, NULL);
 
     return ret;
 }
@@ -821,6 +838,9 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 {
     miPointerScreenPtr pointer_priv;
 
+    if (wayland_screen_init(xwl_screen, xwl_screen->driver->use_drm) != Success)
+	return BadAlloc;
+
     xwl_screen->screen = screen;
 
     if (!dixRegisterPrivateKey(&xwl_screen_private_key, PRIVATE_SCREEN, 0))
@@ -863,7 +883,7 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 
 struct xwl_screen *
 xwl_screen_pre_init(ScrnInfoPtr scrninfo,
-		       uint32_t flags, struct xwl_driver *driver)
+		    uint32_t flags, struct xwl_driver *driver)
 {
     struct xwl_screen *xwl_screen;
 
@@ -875,6 +895,7 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 
     list_init(&xwl_screen->input_device_list);
     list_init(&xwl_screen->damage_window_list);
+    list_init(&xwl_screen->window_list);
     xwl_screen->scrninfo = scrninfo;
     xwl_screen->driver = driver;
     xwl_screen->flags = flags;
@@ -885,9 +906,6 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
-
-    if (wayland_screen_init(xwl_screen, driver->use_drm) != Success)
-	return NULL;
 
     xf86InitialConfiguration(scrninfo, TRUE);
 
@@ -929,11 +947,14 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
     return xwl_window->buffer ? Success : BadDrawable;
 }
 
+void xwl_screen_close(struct xwl_screen *xwl_screen)
+{
+    wayland_screen_close(xwl_screen);
+    xwl_screen->input_initialized = 0;
+}
+
 void xwl_screen_destroy(struct xwl_screen *xwl_screen)
 {
-    wl_display_destroy(xwl_screen->display);
-    if (xwl_screen->drm_fd >= 0)
-        close(xwl_screen->drm_fd);
     free(xwl_screen);
 }
 
@@ -960,8 +981,8 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
     BoxPtr box;
     int count, i;
 
-    list_for_each_entry(xwl_window,
-			&xwl_screen->damage_window_list, link) {
+    list_for_each_entry(xwl_window, &xwl_screen->damage_window_list,
+			link_damage) {
 
 	region = DamageRegion(xwl_window->damage);
 	count = RegionNumRects(region);

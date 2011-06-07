@@ -34,7 +34,10 @@ struct xwl_window {
     WindowPtr			 window;
     DamagePtr			 damage;
     struct list			 link;
+    struct list			 link_damage;
 };
+
+struct xwl_output;
 
 struct xwl_screen {
     struct xwl_driver		*driver;
@@ -44,6 +47,7 @@ struct xwl_screen {
     int				 wayland_fd;
     struct wl_display		*display;
     struct wl_compositor	*compositor;
+    struct wl_global_listener   *global_listener;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
     struct wl_visual		*argb_visual;
@@ -56,6 +60,7 @@ struct xwl_screen {
     uint32_t			 input_initialized;
     struct list			 input_device_list;
     struct list			 damage_window_list;
+    struct list			 window_list;
 
     /* FIXME: Hack. */
     int32_t			 width, height;
@@ -98,7 +103,7 @@ struct xwl_input_device *
 xwl_input_device_create(struct xwl_screen *xwl_screen);
 
 int wayland_screen_init(struct xwl_screen *screen, int use_drm);
-int x11_screen_init(struct xwl_screen *screen);
+int wayland_screen_close(struct xwl_screen *screen);
 
 int wayland_drm_screen_init(struct xwl_screen *screen);
 
