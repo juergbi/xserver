@@ -52,8 +52,8 @@ struct xwl_screen {
     uint32_t			 mask;
     uint32_t			 flags;
     char			*device_name;
-    int                          initialized;
     uint32_t			 authenticated;
+    uint32_t			 input_initialized;
     struct list			 input_device_list;
     struct list			 damage_window_list;
 

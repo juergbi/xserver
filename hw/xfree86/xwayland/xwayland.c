@@ -162,6 +162,7 @@ input_init_keyboard(struct xwl_input_device *d,
 
     device = AddInputDevice(serverClient, input_proc, TRUE);
     d->keyboard = device;
+
     dixSetPrivate(&device->devPrivates, &xwl_device_private_key, d);
 
     atom = MakeAtom(name, strlen(name), TRUE);
@@ -345,20 +346,46 @@ xwl_output_create(struct xwl_screen *xwl_screen)
 }
 
 static void
+input_init_devices(struct xwl_input_device *xwl_input_device)
+{
+    ActivateDevice(xwl_input_device->pointer, TRUE);
+    ActivateDevice(xwl_input_device->keyboard, TRUE);
+    EnableDevice(xwl_input_device->pointer, TRUE);
+    EnableDevice(xwl_input_device->keyboard, TRUE);
+}
+static void
+add_input_device(struct xwl_input_device *xwl_input_device)
+{
+    input_init_pointer(xwl_input_device, xwl_input_device->xwl_screen);
+    input_init_keyboard(xwl_input_device, xwl_input_device->xwl_screen);
+    input_init_devices(xwl_input_device);
+}
+
+static void
 add_input_devices(struct xwl_screen *xwl_screen)
 {
     struct xwl_input_device *xwl_input_device;
 
-    if (!xwl_screen->initialized)
-        return ;
+    if (!xwl_screen->input_initialized)
+	return ;
 
     list_for_each_entry(xwl_input_device,
 			&xwl_screen->input_device_list, link) {
-        if (xwl_input_device->pointer || xwl_input_device->keyboard)
-            continue ;
-	input_init_pointer(xwl_input_device, xwl_screen);
-	input_init_keyboard(xwl_input_device, xwl_screen);
+	if (!xwl_input_device->pointer && !xwl_input_device->keyboard)
+	    add_input_device(xwl_input_device);
     }
+}
+
+static CARD32
+xwl_input_initialize(OsTimerPtr timer, CARD32 time, pointer data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    xwl_screen->input_initialized = 1;
+    add_input_devices(xwl_screen);
+    TimerFree(timer);
+
+    return 0;
 }
 
 struct xwl_input_device *
@@ -375,7 +402,8 @@ xwl_input_device_create(struct xwl_screen *xwl_screen)
     xwl_input_device->xwl_screen = xwl_screen;
     list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
 
-    add_input_devices(xwl_screen);
+    if (xwl_screen->input_initialized)
+	add_input_device(xwl_input_device);
 
     return xwl_input_device;
 }
@@ -457,14 +485,8 @@ xwl_create_window(WindowPtr window)
     xwl_screen->CreateWindow = screen->CreateWindow;
     screen->CreateWindow = xwl_create_window;
 
-    /* First window is mapped, so now we can add input devices */
-    if (!xwl_screen->initialized) {
-        xwl_screen->initialized = 1;
-        add_input_devices(xwl_screen);
-    }
-
     if (!(xwl_screen->flags & XWL_FLAGS_ROOTLESS) ||
-	window->parent != NULL)
+	window->parent == NULL)
 	return ret;
 
     len = snprintf(buffer, sizeof buffer, "_NET_WM_CM_S%d", screen->myNum);
@@ -835,6 +857,7 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     xwl_screen->sprite_funcs = pointer_priv->spriteFuncs;
     pointer_priv->spriteFuncs = &xwl_pointer_sprite_funcs;
 
+    TimerSet(NULL, 0, 1, xwl_input_initialize, xwl_screen);
     return Success;
 }
 
