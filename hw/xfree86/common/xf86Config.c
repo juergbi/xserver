@@ -959,9 +959,10 @@ configServerFlags(XF86ConfFlagsPtr flagsconf, XF86OptionPtr layoutopts)
     }
 #endif
 
-    /* if we're not hotplugging, force some input devices to exist */
-    if (!xorgWayland)
-        xf86Info.forceInputDevices = !(xf86Info.autoAddDevices && xf86Info.autoEnableDevices);
+    if (xorgWayland) /* Don't force input devices */
+	xf86Info.forceInputDevices = FALSE;
+    else /* if we're not hotplugging, force some input devices to exist */
+	xf86Info.forceInputDevices = !(xf86Info.autoAddDevices && xf86Info.autoEnableDevices);
 
     /* when forcing input devices, we use kbd. otherwise evdev, so use the
      * evdev rules set. */
