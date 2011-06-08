@@ -638,6 +638,8 @@ xwl_unrealize_window(WindowPtr window)
     wl_surface_destroy(xwl_window->surface);
     list_del(&xwl_window->link);
     list_del(&xwl_window->link_damage);
+    DamageUnregister(&window->drawable, xwl_window->damage);
+    DamageDestroy(xwl_window->damage);
     free(xwl_window);
     dixSetPrivate(&window->devPrivates, &xwl_window_private_key, NULL);
 
