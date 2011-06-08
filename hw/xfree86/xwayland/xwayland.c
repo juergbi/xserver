@@ -280,19 +280,19 @@ output_get_modes(xf86OutputPtr xf86output)
     DisplayModePtr modes;
 
     modes = xf86CVTMode(output->width, output->height, 60, TRUE, FALSE);
-    output->monitor.det_mon[0].type = DS_RANGES;
-    ranges = &output->monitor.det_mon[0].section.ranges;
+    output->xf86monitor.det_mon[0].type = DS_RANGES;
+    ranges = &output->xf86monitor.det_mon[0].section.ranges;
     ranges->min_h = modes->HSync - 10;
     ranges->max_h = modes->HSync + 10;
     ranges->min_v = modes->VRefresh - 10;
     ranges->max_v = modes->VRefresh + 10;
     ranges->max_clock = modes->Clock + 100;
-    output->monitor.det_mon[1].type = DT;
-    output->monitor.det_mon[2].type = DT;
-    output->monitor.det_mon[3].type = DT;
-    output->monitor.no_sections = 0;
+    output->xf86monitor.det_mon[1].type = DT;
+    output->xf86monitor.det_mon[2].type = DT;
+    output->xf86monitor.det_mon[3].type = DT;
+    output->xf86monitor.no_sections = 0;
 
-    xf86output->MonInfo = &output->monitor;
+    xf86output->MonInfo = &output->xf86monitor;
 
     return modes;
 }
@@ -341,6 +341,11 @@ xwl_output_create(struct xwl_screen *xwl_screen)
 
     xf86crtc = xf86CrtcCreate(xwl_screen->scrninfo, &crtc_funcs);
     xf86crtc->driver_private = xwl_output;
+
+    xwl_output->xf86output = xf86output;
+    xwl_output->xf86crtc = xf86crtc;
+
+    xwl_screen->xwl_output = xwl_output;
 
     return xwl_output;
 }
@@ -414,11 +419,8 @@ resize(ScrnInfoPtr scrn, int width, int height)
 {
     if (scrn->virtualX == width && scrn->virtualY == height)
 	return TRUE;
-
-    scrn->virtualX = width;
-    scrn->virtualY = height;
-
-    return TRUE;
+    /* We don't handle resize at all, we must match the compositor size */
+    return FALSE;
 }
 
 static const xf86CrtcConfigFuncsRec config_funcs = {
@@ -955,6 +957,12 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
 
 void xwl_screen_destroy(struct xwl_screen *xwl_screen)
 {
+    if (xwl_screen->xwl_output) {
+	xf86OutputDestroy(xwl_screen->xwl_output->xf86output);
+	xf86CrtcDestroy(xwl_screen->xwl_output->xf86crtc);
+    }
+
+    free(xwl_screen->xwl_output);
     free(xwl_screen);
 }
 

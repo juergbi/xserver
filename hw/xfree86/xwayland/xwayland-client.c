@@ -122,6 +122,7 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
 
     dx = xwl_input_device->focus_window->window->drawable.x;
     dy = xwl_input_device->focus_window->window->drawable.y;
+
     xf86PostMotionEvent(xwl_input_device->pointer,
 			TRUE, 0, 2, sx + dx, sy + dy);
 }
@@ -411,13 +412,15 @@ wayland_screen_close(struct xwl_screen *xwl_screen)
 	wl_visual_destroy(xwl_screen->rgb_visual);
     if (xwl_screen->argb_visual)
 	wl_visual_destroy(xwl_screen->premultiplied_argb_visual);
+    if (xwl_screen->xwl_output && xwl_screen->xwl_output->output) {
+	wl_output_destroy(xwl_screen->xwl_output->output);
+    }
     if (xwl_screen->compositor)
 	wl_compositor_destroy(xwl_screen->compositor);
     if (xwl_screen->display) {
 	RemoveGeneralSocket(xwl_screen->wayland_fd);
 	wl_display_destroy(xwl_screen->display);
     }
-    //damage_window_list
 
     xwl_screen->drm_fd = -1;
     xwl_screen->wayland_fd = -1;
@@ -436,6 +439,8 @@ wayland_screen_close(struct xwl_screen *xwl_screen)
     list_init(&xwl_screen->window_list);
     xwl_screen->root_x = 0;
     xwl_screen->root_y = 0;
+    if (xwl_screen->xwl_output)
+	xwl_screen->xwl_output->output = NULL;
 
     return Success;
 }

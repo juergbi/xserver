@@ -45,6 +45,7 @@ struct xwl_screen {
     ScrnInfoPtr			 scrninfo;
     int				 drm_fd;
     int				 wayland_fd;
+    struct xwl_output		*xwl_output;
     struct wl_display		*display;
     struct wl_compositor	*compositor;
     struct wl_global_listener   *global_listener;
@@ -78,7 +79,9 @@ struct xwl_output {
     struct wl_output		*output;
     struct xwl_screen		*xwl_screen;
     int32_t			 x, y, width, height;
-    xf86Monitor			 monitor;
+    xf86Monitor			 xf86monitor;
+    xf86OutputPtr		 xf86output;
+    xf86CrtcPtr			 xf86crtc;
 };
 
 
