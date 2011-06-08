@@ -35,6 +35,7 @@
 #include <wayland-util.h>
 #include <wayland-client.h>
 #include <X11/extensions/compositeproto.h>
+#include <xserver-properties.h>
 
 #include <compositeext.h>
 #include <selection.h>
@@ -103,12 +104,16 @@ static int
 input_init_pointer(struct xwl_input_device *d, struct xwl_screen *screen)
 {
     DeviceIntPtr device;
+    char *name = "xwayland";
+    int i = 0;
     int min_x = 0, min_y = 0;
     int max_x = screen->width, max_y = screen->height;
-    static unsigned char map[] = { 0, 1, 2, 3 };
-    CARD32 atom;
-    char *name = "xwayland";
-    Atom labels[3];
+#define NBUTTONS 10
+#define NAXES 2
+    BYTE map[NBUTTONS + 1];
+    Atom btn_labels[NBUTTONS] = {0};
+    Atom axes_labels[NAXES] = {0};
+    Atom atom;
 
     xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Pointer\n");
 
@@ -123,28 +128,40 @@ input_init_pointer(struct xwl_input_device *d, struct xwl_screen *screen)
     device->type = SLAVE;
     device->spriteInfo->spriteOwner = FALSE;
 
-    labels[0] = MakeAtom("x", 1, TRUE);
-    labels[1] = MakeAtom("y", 1, TRUE);
+    for (i = 1; i <= NBUTTONS; i++)
+	map[i] = i;
 
-    if (!InitValuatorClassDeviceStruct(device, 2, labels,
+    btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
+    btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
+    btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
+    btn_labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
+    btn_labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
+    btn_labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
+    btn_labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
+    /* don't know about the rest */
+
+    axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
+    axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
+
+    if (!InitValuatorClassDeviceStruct(device, 2, btn_labels,
 				       GetMotionHistorySize(), Absolute))
-	return !Success;
+	return BadValue;
 
     /* Valuators */
-    InitValuatorAxisStruct(device, 0, labels[0],
-			   min_x, max_x, 10000, 0, 10000, Absolute);
-    InitValuatorAxisStruct(device, 1, labels[1],
-			   min_y, max_y, 10000, 0, 10000, Absolute);
+    /* FIXME: it may be a good idea to use Relative axis instead of Absolute */
+    InitValuatorAxisStruct(device, 0, axes_labels[0],
+			   min_x, max_x / 2, 10000, 0, 10000, Absolute);
+    InitValuatorAxisStruct(device, 1, axes_labels[1],
+			   min_y, max_y / 2, 10000, 0, 10000, Absolute);
 
     if (!InitPtrFeedbackClassDeviceStruct(device, input_ptr_ctrl_proc))
-	return !Success;
+	return BadValue;
 
-    /* FIXME: count number of actual buttons */
-    labels[0] = MakeAtom("left", 4, TRUE);
-    labels[1] = MakeAtom("middle", 6, TRUE);
-    labels[2] = MakeAtom("right", 5, TRUE);
-    if (!InitButtonClassDeviceStruct(device, 3, labels, map))
-	return !Success;
+    if (!InitButtonClassDeviceStruct(device, 3, btn_labels, map))
+	return BadValue;
+
+#undef NBUTTONS
+#undef NAXES
 
     return Success;
 }
