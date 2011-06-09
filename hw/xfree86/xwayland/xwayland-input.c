@@ -320,6 +320,7 @@ unwind:
     return NULL;
 }
 
+/* Use that code if the compositor want to delete an input device
 static void
 device_removed(DeviceIntPtr dev)
 {
@@ -330,6 +331,7 @@ device_removed(DeviceIntPtr dev)
     DeleteInputDeviceRequest(dev);
     OsReleaseSignals();
 }
+*/
 
 static void
 add_input_device(struct xwl_input_device *xwl_input_device)
