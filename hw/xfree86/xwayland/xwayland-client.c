@@ -113,7 +113,8 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
 			   int32_t x, int32_t y, int32_t sx, int32_t sy)
 {
     struct xwl_input_device *xwl_input_device = data;
-    int32_t dx, dy;
+    struct xwl_screen *xwl_screen = xwl_input_device->xwl_screen;
+    int32_t dx, dy, lx, ly;
 
     xwl_input_device->time = time;
 
@@ -123,8 +124,11 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
     dx = xwl_input_device->focus_window->window->drawable.x;
     dy = xwl_input_device->focus_window->window->drawable.y;
 
+    lx = xf86ScaleAxis(sx + dx, 0xFFFF, 0, xwl_screen->scrninfo->virtualX, 0);
+    ly = xf86ScaleAxis(sy + dy, 0xFFFF, 0, xwl_screen->scrninfo->virtualY, 0);
+
     xf86PostMotionEvent(xwl_input_device->pointer,
-			TRUE, 0, 2, sx + dx, sy + dy);
+			TRUE, 0, 2, lx, ly);
 }
 
 static void
@@ -245,6 +249,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
     xwl_input_device = xwl_input_device_create(xwl_screen);
     xwl_input_device->input_device =
         wl_input_device_create (xwl_screen->display, id, 1);
+    xwl_input_device->id = id;
 
     wl_input_device_add_listener(xwl_input_device->input_device,
 				 &input_device_listener,
@@ -272,8 +277,7 @@ global_handler(struct wl_display *display,
 			     &drm_listener, xwl_screen);
 #endif
     } else if (strcmp (interface, "wl_shm") == 0) {
-        xwl_screen->shm = wl_shm_create (xwl_screen->display, id,
-					    1);
+        xwl_screen->shm = wl_shm_create (xwl_screen->display, id, 1);
     } else if (strcmp (interface, "wl_output") == 0) {
         create_output(xwl_screen, id, 1);
     } else if (strcmp (interface, "wl_input_device") == 0) {

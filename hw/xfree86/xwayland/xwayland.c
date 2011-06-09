@@ -68,140 +68,6 @@
 static DevPrivateKeyRec xwl_window_private_key;
 static DevPrivateKeyRec xwl_screen_private_key;
 static DevPrivateKeyRec xwl_cursor_private_key;
-static DevPrivateKeyRec xwl_device_private_key;
-
-static int
-input_proc(DeviceIntPtr device, int event)
-{
-    switch (event) {
-    case DEVICE_INIT:
-	break;
-    case DEVICE_ON:
-	break;
-    case DEVICE_OFF:
-	break;
-    case DEVICE_CLOSE:
-	break;
-    }
-
-    return Success;
-}
-
-static void
-input_ptr_ctrl_proc(DeviceIntPtr device, PtrCtrl *ctrl)
-{
-	/* Nothing to do, dix handles all settings */
-}
-
-static void
-input_kbd_ctrl(DeviceIntPtr device, KeybdCtrl *ctrl)
-{
-	/* FIXME: Set keyboard leds based on CAPSFLAG etc being set in
-	 * ctrl->leds */
-}
-
-static int
-input_init_pointer(struct xwl_input_device *d, struct xwl_screen *screen)
-{
-    DeviceIntPtr device;
-    char *name = "xwayland";
-    int i = 0;
-    int min_x = 0, min_y = 0;
-    int max_x = screen->width, max_y = screen->height;
-#define NBUTTONS 10
-#define NAXES 2
-    BYTE map[NBUTTONS + 1];
-    Atom btn_labels[NBUTTONS] = {0};
-    Atom axes_labels[NAXES] = {0};
-    Atom atom;
-
-    xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Pointer\n");
-
-    device = AddInputDevice(serverClient, input_proc, TRUE);
-    d->pointer = device;
-    dixSetPrivate(&device->devPrivates, &xwl_device_private_key, d);
-
-    atom = MakeAtom(name, strlen(name), TRUE);
-    AssignTypeAndName(device, atom, name);
-
-    device->coreEvents = TRUE;
-    device->type = SLAVE;
-    device->spriteInfo->spriteOwner = FALSE;
-
-    for (i = 1; i <= NBUTTONS; i++)
-	map[i] = i;
-
-    btn_labels[0] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_LEFT);
-    btn_labels[1] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_MIDDLE);
-    btn_labels[2] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_RIGHT);
-    btn_labels[3] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_UP);
-    btn_labels[4] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_WHEEL_DOWN);
-    btn_labels[5] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_LEFT);
-    btn_labels[6] = XIGetKnownProperty(BTN_LABEL_PROP_BTN_HWHEEL_RIGHT);
-    /* don't know about the rest */
-
-    axes_labels[0] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_X);
-    axes_labels[1] = XIGetKnownProperty(AXIS_LABEL_PROP_ABS_Y);
-
-    if (!InitValuatorClassDeviceStruct(device, 2, btn_labels,
-				       GetMotionHistorySize(), Absolute))
-	return BadValue;
-
-    /* Valuators */
-    /* FIXME: it may be a good idea to use Relative axis instead of Absolute */
-    InitValuatorAxisStruct(device, 0, axes_labels[0],
-			   min_x, max_x / 2, 10000, 0, 10000, Absolute);
-    InitValuatorAxisStruct(device, 1, axes_labels[1],
-			   min_y, max_y / 2, 10000, 0, 10000, Absolute);
-
-    if (!InitPtrFeedbackClassDeviceStruct(device, input_ptr_ctrl_proc))
-	return BadValue;
-
-    if (!InitButtonClassDeviceStruct(device, 3, btn_labels, map))
-	return BadValue;
-
-#undef NBUTTONS
-#undef NAXES
-
-    return Success;
-}
-
-static int
-input_init_keyboard(struct xwl_input_device *d,
-		    struct xwl_screen *screen)
-{
-    DeviceIntPtr device;
-    CARD32 atom;
-    char *name = "xwayland";
-    XkbRMLVOSet rmlvo;
-
-    xf86DrvMsg(screen->scrninfo->scrnIndex, X_INFO, "Initializing Keyboard\n");
-
-    device = AddInputDevice(serverClient, input_proc, TRUE);
-    d->keyboard = device;
-
-    dixSetPrivate(&device->devPrivates, &xwl_device_private_key, d);
-
-    atom = MakeAtom(name, strlen(name), TRUE);
-    AssignTypeAndName(device, atom, name);
-
-    device->coreEvents = TRUE;
-    device->type = SLAVE;
-    device->spriteInfo->spriteOwner = FALSE;
-
-    rmlvo.rules = "evdev";
-    rmlvo.model = "evdev";
-    rmlvo.layout = "us";
-    rmlvo.variant = NULL;
-    rmlvo.options = NULL;
-
-    if (!InitKeyboardDeviceStruct(device, &rmlvo, NULL, input_kbd_ctrl))
-	return !Success;
-
-    ActivateDevice(device, FALSE);
-
-    return Success;
-}
 
 static void
 crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
@@ -365,70 +231,6 @@ xwl_output_create(struct xwl_screen *xwl_screen)
     xwl_screen->xwl_output = xwl_output;
 
     return xwl_output;
-}
-
-static void
-input_init_devices(struct xwl_input_device *xwl_input_device)
-{
-    ActivateDevice(xwl_input_device->pointer, TRUE);
-    ActivateDevice(xwl_input_device->keyboard, TRUE);
-    EnableDevice(xwl_input_device->pointer, TRUE);
-    EnableDevice(xwl_input_device->keyboard, TRUE);
-}
-
-static void
-add_input_device(struct xwl_input_device *xwl_input_device)
-{
-    input_init_pointer(xwl_input_device, xwl_input_device->xwl_screen);
-    input_init_keyboard(xwl_input_device, xwl_input_device->xwl_screen);
-    input_init_devices(xwl_input_device);
-}
-
-static void
-add_input_devices(struct xwl_screen *xwl_screen)
-{
-    struct xwl_input_device *xwl_input_device;
-
-    if (!xwl_screen->input_initialized)
-	return ;
-
-    list_for_each_entry(xwl_input_device,
-			&xwl_screen->input_device_list, link) {
-	if (!xwl_input_device->pointer && !xwl_input_device->keyboard)
-	    add_input_device(xwl_input_device);
-    }
-}
-
-static CARD32
-xwl_input_initialize(OsTimerPtr timer, CARD32 time, pointer data)
-{
-    struct xwl_screen *xwl_screen = data;
-
-    xwl_screen->input_initialized = 1;
-    add_input_devices(xwl_screen);
-    TimerFree(timer);
-
-    return 0;
-}
-
-struct xwl_input_device *
-xwl_input_device_create(struct xwl_screen *xwl_screen)
-{
-    struct xwl_input_device *xwl_input_device;
-
-    xwl_input_device = calloc(sizeof *xwl_input_device, 1);
-    if (xwl_input_device == NULL) {
-	ErrorF("create_input ENOMEM");
-	return NULL;
-    }
-
-    xwl_input_device->xwl_screen = xwl_screen;
-    list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
-
-    if (xwl_screen->input_initialized)
-	add_input_device(xwl_input_device);
-
-    return xwl_input_device;
 }
 
 static Bool
@@ -796,18 +598,23 @@ xwl_unrealize_cursor(DeviceIntPtr device,
 
 static void
 xwl_set_cursor(DeviceIntPtr device,
-		  ScreenPtr screen, CursorPtr cursor, int x, int y)
+	       ScreenPtr screen, CursorPtr cursor, int x, int y)
 {
+    struct xwl_screen *xwl_screen;
     struct xwl_input_device *xwl_input_device;
     struct wl_buffer *buffer;
 
     if (!cursor)
 	return;
 
-    xwl_input_device =
-	dixGetPrivate(&device->devPrivates, &xwl_device_private_key);
-    if (!xwl_input_device)
-	return;
+    xwl_screen = dixLookupPrivate(&screen->devPrivates,
+				  &xwl_screen_private_key);
+
+    if (!xwl_screen || list_is_empty(&xwl_screen->input_device_list))
+	return ;
+
+    xwl_input_device = list_first_entry(&xwl_screen->input_device_list,
+					struct xwl_input_device, link);
 
     buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
@@ -827,7 +634,7 @@ xwl_device_cursor_initialize(DeviceIntPtr device, ScreenPtr screen)
     struct xwl_screen *xwl_screen;
 
     xwl_screen = dixLookupPrivate(&screen->devPrivates,
-				     &xwl_screen_private_key);
+				  &xwl_screen_private_key);
 
     return xwl_screen->sprite_funcs->DeviceCursorInitialize(device,
 							       screen);
@@ -839,7 +646,7 @@ xwl_device_cursor_cleanup(DeviceIntPtr device, ScreenPtr screen)
     struct xwl_screen *xwl_screen;
 
     xwl_screen = dixLookupPrivate(&screen->devPrivates,
-				     &xwl_screen_private_key);
+				  &xwl_screen_private_key);
 
     xwl_screen->sprite_funcs->DeviceCursorCleanup(device, screen);
 }
@@ -853,6 +660,17 @@ static miPointerSpriteFuncRec xwl_pointer_sprite_funcs =
     xwl_device_cursor_initialize,
     xwl_device_cursor_cleanup
 };
+
+static CARD32
+xwl_input_delayed_init(OsTimerPtr timer, CARD32 time, pointer data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    xwl_input_init(xwl_screen);
+    TimerFree(timer);
+
+    return 0;
+}
 
 int
 xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
@@ -871,9 +689,6 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 	return BadAlloc;
 
     if (!dixRegisterPrivateKey(&xwl_cursor_private_key, PRIVATE_CURSOR, 0))
-	return BadAlloc;
-
-    if (!dixRegisterPrivateKey(&xwl_device_private_key, PRIVATE_DEVICE, 0))
 	return BadAlloc;
 
     dixSetPrivate(&screen->devPrivates,
@@ -898,7 +713,7 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     xwl_screen->sprite_funcs = pointer_priv->spriteFuncs;
     pointer_priv->spriteFuncs = &xwl_pointer_sprite_funcs;
 
-    TimerSet(NULL, 0, 1, xwl_input_initialize, xwl_screen);
+    TimerSet(NULL, 0, 1, xwl_input_delayed_init, xwl_screen);
     return Success;
 }
 
@@ -1029,7 +844,13 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 static pointer
 xwl_setup(pointer module, pointer opts, int *errmaj, int *errmin)
 {
-    return (pointer) 1;
+    return xwl_input_setup(module, opts, errmaj, errmin);
+}
+
+static void
+xwl_teardown(pointer p)
+{
+    xwl_input_teardown(p);
 }
 
 static XF86ModuleVersionInfo xwl_version_info = {
@@ -1048,7 +869,7 @@ static XF86ModuleVersionInfo xwl_version_info = {
 _X_EXPORT const XF86ModuleData xwaylandModuleData = {
     &xwl_version_info,
     &xwl_setup,
-    NULL
+    &xwl_teardown
 };
 
 int

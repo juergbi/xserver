@@ -95,6 +95,7 @@ struct xwl_input_device {
     int				 grab;
     struct xwl_window		*focus_window;
     int32_t			 grab_x, grab_y;
+    uint32_t			 id;
     uint32_t			 modifiers;
     uint32_t			 time;
     struct list			 link;
@@ -104,6 +105,10 @@ struct xwl_output *
 xwl_output_create(struct xwl_screen *xwl_screen);
 struct xwl_input_device *
 xwl_input_device_create(struct xwl_screen *xwl_screen);
+
+void xwl_input_teardown(pointer p);
+pointer xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin);
+void xwl_input_init(struct xwl_screen *screen);
 
 int wayland_screen_init(struct xwl_screen *screen, int use_drm);
 int wayland_screen_close(struct xwl_screen *screen);
