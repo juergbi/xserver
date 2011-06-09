@@ -73,8 +73,6 @@ xwl_pointer_proc(DeviceIntPtr device, int what)
     Atom btn_labels[NBUTTONS] = {0};
     Atom axes_labels[NAXES] = {0};
 
-    fprintf(stderr, "input proc %p %d\n", device, what);
-
     switch (what) {
     case DEVICE_INIT:
 	device->public.on = FALSE;
@@ -137,7 +135,7 @@ static int
 xwl_keyboard_proc(DeviceIntPtr device, int what)
 {
     XkbRMLVOSet rmlvo;
-    fprintf(stderr, "keyboard proc %p %d\n", device, what);
+
     switch (what) {
     case DEVICE_INIT:
 	device->public.on = FALSE;
