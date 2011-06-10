@@ -35,19 +35,13 @@
 #include <wayland-util.h>
 #include <wayland-client.h>
 #include <X11/extensions/compositeproto.h>
-#include <xserver-properties.h>
 
 #include <compositeext.h>
 #include <selection.h>
 #include <extinit.h>
-#include <input.h>
-#include <inputstr.h>
 #include <exevents.h>
-#include <xkbsrv.h>
 #include <xf86Xinput.h>
 #include <xf86Crtc.h>
-#include <xf86str.h>
-#include <windowstr.h>
 #include <xf86Priv.h>
 #include <mipointrst.h>
 

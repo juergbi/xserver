@@ -29,6 +29,7 @@
 
 #include <stdint.h>
 #include <unistd.h>
+#include <linux/input.h>
 #include <wayland-util.h>
 #include <wayland-client.h>
 #include <X11/extensions/compositeproto.h>
@@ -37,6 +38,7 @@
 #include <compositeext.h>
 #include <selection.h>
 #include <extinit.h>
+#include <exevents.h>
 #include <input.h>
 #include <inputstr.h>
 #include <exevents.h>
@@ -343,38 +345,182 @@ add_input_device(struct xwl_input_device *xwl_input_device)
 }
 
 static void
-add_input_devices(struct xwl_screen *xwl_screen)
+input_device_handle_motion(void *data, struct wl_input_device *input_device,
+			   uint32_t time,
+			   int32_t x, int32_t y, int32_t sx, int32_t sy)
 {
-    struct xwl_input_device *xwl_input_device;
+    struct xwl_input_device *xwl_input_device = data;
+    struct xwl_screen *xwl_screen = xwl_input_device->xwl_screen;
+    int32_t dx, dy, lx, ly;
 
-    list_for_each_entry(xwl_input_device,
-			&xwl_screen->input_device_list, link)
-	add_input_device(xwl_input_device);
+    xwl_input_device->time = time;
+
+    if (!xwl_input_device->focus_window)
+	return ;
+
+    dx = xwl_input_device->focus_window->window->drawable.x;
+    dy = xwl_input_device->focus_window->window->drawable.y;
+
+    lx = xf86ScaleAxis(sx + dx, 0xFFFF, 0, xwl_screen->scrninfo->virtualX, 0);
+    ly = xf86ScaleAxis(sy + dy, 0xFFFF, 0, xwl_screen->scrninfo->virtualY, 0);
+
+    xf86PostMotionEvent(xwl_input_device->pointer,
+			TRUE, 0, 2, lx, ly);
 }
 
-void
-xwl_input_init(struct xwl_screen *xwl_screen)
+static void
+input_device_handle_button(void *data, struct wl_input_device *input_device,
+			   uint32_t time, uint32_t button, uint32_t state)
 {
-    xwl_screen->input_initialized = 1;
-    add_input_devices(xwl_screen);
+    struct xwl_input_device *xwl_input_device = data;
+    int index;
+
+    xwl_input_device->time = time;
+
+    switch (button) {
+    case BTN_MIDDLE:
+	index = 2;
+	break;
+    case BTN_RIGHT:
+	index = 3;
+	break;
+    default:
+	index = button - BTN_LEFT + 1;
+	break;
+    }
+
+    xf86PostButtonEvent(xwl_input_device->pointer,
+			TRUE, index, state, 0, 0);
 }
 
-struct xwl_input_device *
-xwl_input_device_create(struct xwl_screen *xwl_screen)
+static void
+input_device_handle_key(void *data, struct wl_input_device *input_device,
+			uint32_t time, uint32_t key, uint32_t state)
+{
+    struct xwl_input_device *xwl_input_device = data;
+    uint32_t modifier;
+
+    xwl_input_device->time = time;
+
+    switch (key) {
+    case KEY_LEFTMETA:
+    case KEY_RIGHTMETA:
+	modifier = MODIFIER_META;
+	break;
+    default:
+	modifier = 0;
+	break;
+    }
+
+    if (state)
+	xwl_input_device->modifiers |= modifier;
+    else
+	xwl_input_device->modifiers &= ~modifier;
+
+    xf86PostKeyboardEvent(xwl_input_device->keyboard, key + 8, state);
+}
+
+static void
+input_device_handle_pointer_focus(void *data,
+				  struct wl_input_device *input_device,
+				  uint32_t time,
+				  struct wl_surface *surface,
+				  int32_t x, int32_t y, int32_t sx, int32_t sy)
+
+{
+    struct xwl_input_device *xwl_input_device = data;
+
+    xwl_input_device->time = time;
+
+    if (surface)
+	xwl_input_device->focus_window = wl_surface_get_user_data(surface);
+    else
+	xwl_input_device->focus_window = NULL;
+
+    if (xwl_input_device->focus_window)
+	SetDeviceRedirectWindow(xwl_input_device->pointer,
+				xwl_input_device->focus_window->window);
+    else
+	SetDeviceRedirectWindow(xwl_input_device->pointer,
+				PointerRootWin);
+}
+
+static void
+input_device_handle_keyboard_focus(void *data,
+				   struct wl_input_device *input_device,
+				   uint32_t time,
+				   struct wl_surface *surface,
+				   struct wl_array *keys)
+{
+    struct xwl_input_device *xwl_input_device = data;
+    uint32_t *k, *end;
+
+    xwl_input_device->time = time;
+
+    xwl_input_device->modifiers = 0;
+    end = (uint32_t *) ((char *) keys->data + keys->size);
+    for (k = keys->data; k < end; k++) {
+	switch (*k) {
+	case KEY_LEFTMETA:
+	case KEY_RIGHTMETA:
+	    xwl_input_device->modifiers |= MODIFIER_META;
+	    break;
+	}
+    }
+}
+
+static const struct wl_input_device_listener input_device_listener = {
+    input_device_handle_motion,
+    input_device_handle_button,
+    input_device_handle_key,
+    input_device_handle_pointer_focus,
+    input_device_handle_keyboard_focus,
+};
+
+static void
+create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
+		    uint32_t version)
 {
     struct xwl_input_device *xwl_input_device;
 
     xwl_input_device = calloc(sizeof *xwl_input_device, 1);
     if (xwl_input_device == NULL) {
 	ErrorF("create_input ENOMEM");
-	return NULL;
+	return ;
     }
 
     xwl_input_device->xwl_screen = xwl_screen;
     list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
 
-    if (xwl_screen->input_initialized)
-	add_input_device(xwl_input_device);
+    add_input_device(xwl_input_device);
 
-    return xwl_input_device;
+    xwl_input_device->input_device =
+        wl_input_device_create (xwl_screen->display, id, 1);
+    xwl_input_device->id = id;
+
+    wl_input_device_add_listener(xwl_input_device->input_device,
+				 &input_device_listener,
+				 xwl_input_device);
+}
+
+static void
+input_handler(struct wl_display *display,
+	      uint32_t id,
+	      const char *interface,
+	      uint32_t version,
+	      void *data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    if (strcmp (interface, "wl_input_device") == 0) {
+        create_input_device(xwl_screen, id, 1);
+    }
+}
+
+void
+xwl_input_init(struct xwl_screen *xwl_screen)
+{
+    xwl_screen->input_listener =
+	wl_display_add_global_listener(xwl_screen->display,
+				       input_handler, xwl_screen);
 }

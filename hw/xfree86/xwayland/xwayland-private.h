@@ -49,6 +49,7 @@ struct xwl_screen {
     struct wl_display		*display;
     struct wl_compositor	*compositor;
     struct wl_global_listener   *global_listener;
+    struct wl_global_listener   *input_listener;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
     struct wl_visual		*argb_visual;
@@ -103,8 +104,6 @@ struct xwl_input_device {
 
 struct xwl_output *
 xwl_output_create(struct xwl_screen *xwl_screen);
-struct xwl_input_device *
-xwl_input_device_create(struct xwl_screen *xwl_screen);
 
 void xwl_input_teardown(pointer p);
 pointer xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin);
