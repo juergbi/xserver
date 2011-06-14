@@ -127,7 +127,6 @@ int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
     return xwl_screen->drm_fd;
 }
 
-#ifdef WITH_LIBDRM
 int
 xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 			     PixmapPtr pixmap, uint32_t name)
@@ -142,4 +141,4 @@ xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 
     return xwl_window->buffer ? Success : BadDrawable;
 }
-#endif
+
