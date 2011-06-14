@@ -127,6 +127,22 @@ int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
     return xwl_screen->drm_fd;
 }
 
+int xwl_drm_authenticate(struct xwl_screen *xwl_screen,
+			    uint32_t magic)
+{
+    xwl_screen->authenticated = 0;
+
+    if (xwl_screen->drm)
+	wl_drm_authenticate (xwl_screen->drm, magic);
+
+    wl_display_iterate (xwl_screen->display, WL_DISPLAY_WRITABLE);
+    while (!xwl_screen->authenticated)
+	wl_display_iterate (xwl_screen->display, WL_DISPLAY_READABLE);
+
+    return Success;
+}
+
+
 int
 xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 			     PixmapPtr pixmap, uint32_t name)

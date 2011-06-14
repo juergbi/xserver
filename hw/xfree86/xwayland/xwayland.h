@@ -63,8 +63,8 @@ extern _X_EXPORT void
 xwl_screen_post_damage(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT int
-xwl_screen_authenticate(struct xwl_screen *xwl_screen,
-			uint32_t magic);
+xwl_drm_authenticate(struct xwl_screen *xwl_screen,
+		     uint32_t magic);
 
 extern _X_EXPORT int
 xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
