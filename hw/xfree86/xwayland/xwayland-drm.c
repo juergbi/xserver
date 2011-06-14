@@ -62,7 +62,7 @@ drm_handle_authenticated (void *data, struct wl_drm *drm)
     xwl_screen->authenticated = 1;
 }
 
-const struct wl_drm_listener xwl_drm_listener =
+static const struct wl_drm_listener xwl_drm_listener =
 {
   drm_handle_device,
   drm_handle_authenticated
