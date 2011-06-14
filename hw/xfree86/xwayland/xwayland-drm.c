@@ -33,7 +33,7 @@
 #include <xf86drm.h>
 #include <wayland-util.h>
 #include <wayland-client.h>
-#include <wayland-drm-client-protocol.h>
+#include <drm-client-protocol.h>
 
 #include <xf86Xinput.h>
 #include <xf86Crtc.h>
@@ -62,16 +62,40 @@ drm_handle_authenticated (void *data, struct wl_drm *drm)
     xwl_screen->authenticated = 1;
 }
 
-static const struct wl_drm_listener drm_listener =
+const struct wl_drm_listener xwl_drm_listener =
 {
   drm_handle_device,
   drm_handle_authenticated
 };
 
+static void
+drm_handler(struct wl_display *display,
+	      uint32_t id,
+	      const char *interface,
+	      uint32_t version,
+	      void *data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    if (strcmp (interface, "wl_drm") == 0) {
+	xwl_screen->drm = wl_drm_create (xwl_screen->display, id, 1);
+	wl_drm_add_listener (xwl_screen->drm, &xwl_drm_listener, xwl_screen);
+    }
+}
+
 int
-wayland_drm_screen_init(struct xwl_screen *xwl_screen)
+xwl_drm_pre_init(struct xwl_screen *xwl_screen)
 {
     uint32_t magic;
+
+    xwl_screen->drm_listener =
+	wl_display_add_global_listener(xwl_screen->display,
+				       drm_handler, xwl_screen);
+
+    xwl_force_roundtrip(xwl_screen);
+
+    ErrorF("wayland_drm_screen_init, device name %s\n",
+	   xwl_screen->device_name);
 
     xwl_screen->drm_fd = open(xwl_screen->device_name, O_RDWR);
     if (xwl_screen->drm_fd < 0) {
@@ -85,5 +109,37 @@ wayland_drm_screen_init(struct xwl_screen *xwl_screen)
     }
 
     wl_drm_authenticate(xwl_screen->drm, magic);
+
+    xwl_force_roundtrip(xwl_screen);
+
+    ErrorF("opened drm fd: %d\n", xwl_screen->drm_fd);
+
+    if (!xwl_screen->authenticated) {
+	ErrorF("Failed to auth drm fd\n");
+	return BadAccess;
+    }
+
     return Success;
 }
+
+int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
+{
+    return xwl_screen->drm_fd;
+}
+
+#ifdef WITH_LIBDRM
+int
+xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
+			     PixmapPtr pixmap, uint32_t name)
+{
+    xwl_window->buffer =
+      wl_drm_create_buffer(xwl_window->xwl_screen->drm,
+			   name,
+			   pixmap->drawable.width,
+			   pixmap->drawable.height,
+			   pixmap->devKind,
+			   xwl_window->visual);
+
+    return xwl_window->buffer ? Success : BadDrawable;
+}
+#endif

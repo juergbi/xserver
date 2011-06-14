@@ -37,7 +37,6 @@
 
 #include "xwayland.h"
 #include "xwayland-private.h"
-#include "drm-client-protocol.h"
 
 static void
 compositor_handle_visual(void *data,
@@ -114,12 +113,6 @@ global_handler(struct wl_display *display,
 	    wl_compositor_create (xwl_screen->display, id, 1);
 	wl_compositor_add_listener(xwl_screen->compositor,
 				   &compositor_listener, xwl_screen);
-#ifdef WITH_LIBDRMM
-    } else if (strcmp (interface, "wl_drm") == 0) {
-	xwl_screen->drm = wl_drm_create (xwl_screen->display, id);
-	wl_drm_add_listener (xwl_screen->drm,
-			     &drm_listener, xwl_screen);
-#endif
     } else if (strcmp (interface, "wl_shm") == 0) {
         xwl_screen->shm = wl_shm_create (xwl_screen->display, id, 1);
     } else if (strcmp (interface, "wl_output") == 0) {
@@ -166,10 +159,29 @@ sync_callback(void *data)
 	*done = 1;
 }
 
-int
-wayland_screen_init(struct xwl_screen *xwl_screen, int use_drm)
+void
+xwl_force_roundtrip(struct xwl_screen *xwl_screen)
 {
     int done = 0;
+
+    wl_display_sync_callback(xwl_screen->display, sync_callback, &done);
+    wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
+    while (!done)
+	    wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+}
+
+int
+wayland_screen_init(struct xwl_screen *xwl_screen)
+{
+    AddGeneralSocket(xwl_screen->wayland_fd);
+    RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler, xwl_screen);
+    return Success;
+}
+
+int
+wayland_screen_pre_init(struct xwl_screen *xwl_screen, int use_drm)
+{
+    int ret;
 
     xwl_screen->display = wl_display_connect(NULL);
     if (xwl_screen->display == NULL) {
@@ -186,37 +198,19 @@ wayland_screen_init(struct xwl_screen *xwl_screen, int use_drm)
     wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
 
     xwl_screen->wayland_fd =
-	wl_display_get_fd(xwl_screen->display,
-			  source_update, xwl_screen);
-
-    AddGeneralSocket(xwl_screen->wayland_fd);
-    RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler,
-				   xwl_screen);
+	wl_display_get_fd(xwl_screen->display, source_update, xwl_screen);
 
 #ifdef WITH_LIBDRM
-    if (use_drm) {
-        int ret;
-
-        if ((ret = wayland_drm_screen_init(xwl_screen)) != Success)
-	    return ret;
-
-        wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
-        while (!xwl_screen->authenticated)
-            wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
-    }
+    if (use_drm)
+	ret = xwl_drm_pre_init(xwl_screen);
+    if (use_drm && ret != Success)
+	return ret;
 #endif
 
-    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual) {
-	    wl_display_sync_callback(xwl_screen->display, sync_callback, &done);
-	    wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
-	    while (!done)
-		    wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
-	    if (!xwl_screen->premultiplied_argb_visual ||
-		!xwl_screen->rgb_visual) {
-		    ErrorF("visuals missing");
-		    exit(1);
-	    }
-    }
+    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
+	    xwl_force_roundtrip(xwl_screen);
+    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
+	    return BadMatch;
 
     return Success;
 }
@@ -227,17 +221,10 @@ wayland_screen_close(struct xwl_screen *xwl_screen)
     struct xwl_input_device *xwl_input_device, *itmp;
     struct xwl_window *xwl_window, *wtmp;
 
-    if (xwl_screen->global_listener)
-	wl_display_remove_global_listener(xwl_screen->display,
-					  xwl_screen->global_listener);
-
     if (xwl_screen->input_listener)
 	wl_display_remove_global_listener(xwl_screen->display,
 					  xwl_screen->input_listener);
 
-    if (xwl_screen->drm_fd >= 0)
-        close(xwl_screen->drm_fd);
-    free(xwl_screen->device_name);
 
     list_for_each_entry_safe(xwl_input_device, itmp,
 			     &xwl_screen->input_device_list, link) {
@@ -251,49 +238,13 @@ wayland_screen_close(struct xwl_screen *xwl_screen)
 	free(xwl_window);
     }
 
-#ifdef WITH_LIBDRM
-    if (xwl_screen->drm)
-	wl_drm_destroy(xwl_screen->drm);
-#endif
-    if (xwl_screen->shm)
-	wl_shm_destroy(xwl_screen->shm);
-    if (xwl_screen->argb_visual)
-	wl_visual_destroy(xwl_screen->argb_visual);
-    if (xwl_screen->rgb_visual)
-	wl_visual_destroy(xwl_screen->rgb_visual);
-    if (xwl_screen->argb_visual)
-	wl_visual_destroy(xwl_screen->premultiplied_argb_visual);
-    if (xwl_screen->xwl_output && xwl_screen->xwl_output->output) {
-	wl_output_destroy(xwl_screen->xwl_output->output);
-    }
-    if (xwl_screen->compositor)
-	wl_compositor_destroy(xwl_screen->compositor);
-    if (xwl_screen->display) {
-	RemoveGeneralSocket(xwl_screen->wayland_fd);
-	wl_display_destroy(xwl_screen->display);
-    }
-
-    xwl_screen->drm_fd = -1;
-    xwl_screen->wayland_fd = -1;
-    xwl_screen->global_listener = NULL;
     xwl_screen->input_listener = NULL;
-    xwl_screen->display = NULL;
-    xwl_screen->compositor = NULL;
-    xwl_screen->drm = NULL;
-    xwl_screen->shm = NULL;
-    xwl_screen->argb_visual = NULL;
-    xwl_screen->rgb_visual = NULL;
-    xwl_screen->premultiplied_argb_visual = NULL;
-    xwl_screen->mask = 0;
-    xwl_screen->device_name = NULL;
-    xwl_screen->authenticated = 0;
     list_init(&xwl_screen->input_device_list);
     list_init(&xwl_screen->damage_window_list);
     list_init(&xwl_screen->window_list);
     xwl_screen->root_x = 0;
     xwl_screen->root_y = 0;
-    if (xwl_screen->xwl_output)
-	xwl_screen->xwl_output->output = NULL;
 
+    xwl_force_roundtrip(xwl_screen);
     return Success;
 }

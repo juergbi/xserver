@@ -49,6 +49,7 @@ struct xwl_screen {
     struct wl_display		*display;
     struct wl_compositor	*compositor;
     struct wl_global_listener   *global_listener;
+    struct wl_global_listener   *drm_listener;
     struct wl_global_listener   *input_listener;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
@@ -59,7 +60,6 @@ struct xwl_screen {
     uint32_t			 flags;
     char			*device_name;
     uint32_t			 authenticated;
-    uint32_t			 input_initialized;
     struct list			 input_device_list;
     struct list			 damage_window_list;
     struct list			 window_list;
@@ -102,16 +102,18 @@ struct xwl_input_device {
     struct list			 link;
 };
 
-struct xwl_output *
-xwl_output_create(struct xwl_screen *xwl_screen);
+struct xwl_output *xwl_output_create(struct xwl_screen *xwl_screen);
 
 void xwl_input_teardown(pointer p);
 pointer xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin);
 void xwl_input_init(struct xwl_screen *screen);
 
-int wayland_screen_init(struct xwl_screen *screen, int use_drm);
+void xwl_force_roundtrip(struct xwl_screen *xwl_screen);
+
+int wayland_screen_pre_init(struct xwl_screen *screen, int use_drm);
+int wayland_screen_init(struct xwl_screen *screen);
 int wayland_screen_close(struct xwl_screen *screen);
 
-int wayland_drm_screen_init(struct xwl_screen *screen);
+int xwl_drm_pre_init(struct xwl_screen *screen);
 
 #endif /* _XWAYLAND_PRIVATE_H_ */

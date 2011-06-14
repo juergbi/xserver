@@ -47,11 +47,6 @@
 
 #include "xwayland.h"
 #include "xwayland-private.h"
-#include "drm-client-protocol.h"
-
-#ifdef WITH_LIBDRM
-#include "wayland-drm-client-protocol.h"
-#endif
 
 /*
  * TODO:
@@ -673,9 +668,6 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 {
     miPointerScreenPtr pointer_priv;
 
-    if (wayland_screen_init(xwl_screen, xwl_screen->driver->use_drm) != Success)
-	return BadAlloc;
-
     xwl_screen->screen = screen;
 
     if (!dixRegisterPrivateKey(&xwl_screen_private_key, PRIVATE_SCREEN, 0))
@@ -709,6 +701,7 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     xwl_screen->sprite_funcs = pointer_priv->spriteFuncs;
     pointer_priv->spriteFuncs = &xwl_pointer_sprite_funcs;
 
+    wayland_screen_init(xwl_screen);
     TimerSet(NULL, 0, 1, xwl_input_delayed_init, xwl_screen);
     return Success;
 }
@@ -718,6 +711,7 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 		    uint32_t flags, struct xwl_driver *driver)
 {
     struct xwl_screen *xwl_screen;
+    int ret;
 
     xwl_screen = calloc(sizeof *xwl_screen, 1);
     if (xwl_screen == NULL) {
@@ -741,31 +735,12 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 
     xf86InitialConfiguration(scrninfo, TRUE);
 
+    ret = wayland_screen_pre_init(xwl_screen, xwl_screen->driver->use_drm);
+    if (ret != Success)
+	return NULL;
+
     return xwl_screen;
 }
-
-int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
-{
-    return xwl_screen->drm_fd;
-}
-
-
-#ifdef WITH_LIBDRM
-int
-xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
-				PixmapPtr pixmap, uint32_t name)
-{
-    xwl_window->buffer =
-      wl_drm_create_buffer(xwl_window->xwl_screen->drm,
-			   name,
-			   pixmap->drawable.width,
-			   pixmap->drawable.height,
-			   pixmap->devKind,
-			   xwl_window->visual);
-
-    return xwl_window->buffer ? Success : BadDrawable;
-}
-#endif
 
 int
 xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
@@ -782,7 +757,6 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
 void xwl_screen_close(struct xwl_screen *xwl_screen)
 {
     wayland_screen_close(xwl_screen);
-    xwl_screen->input_initialized = 0;
 }
 
 void xwl_screen_destroy(struct xwl_screen *xwl_screen)
@@ -794,21 +768,6 @@ void xwl_screen_destroy(struct xwl_screen *xwl_screen)
 
     free(xwl_screen->xwl_output);
     free(xwl_screen);
-}
-
-int xwl_screen_authenticate(struct xwl_screen *xwl_screen,
-			       uint32_t magic)
-{
-    xwl_screen->authenticated = 0;
-#ifdef WITH_LIBDRM
-    if (xwl_screen->drm)
-        wl_drm_authenticate (xwl_screen->drm, magic);
-#endif
-    wl_display_iterate (xwl_screen->display, WL_DISPLAY_WRITABLE);
-    while (!xwl_screen->authenticated)
-	wl_display_iterate (xwl_screen->display, WL_DISPLAY_READABLE);
-
-    return Success;
 }
 
 /* DDX driver must call this after submitting the rendering */

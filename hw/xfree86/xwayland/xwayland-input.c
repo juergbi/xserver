@@ -168,7 +168,6 @@ xwl_keyboard_proc(DeviceIntPtr device, int what)
 static void
 xwl_keyboard_uninit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 {
-    xwl_keyboard_proc(pInfo->dev, DEVICE_OFF);
 }
 
 static int
@@ -196,7 +195,6 @@ _X_EXPORT InputDriverRec xwl_keyboard_driver = {
 static void
 xwl_pointer_uninit(InputDriverPtr drv, InputInfoPtr pInfo, int flags)
 {
-    xwl_pointer_proc(pInfo->dev, DEVICE_OFF);
 }
 
 static int
@@ -258,17 +256,11 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
     InputAttributes attrs = {0};
     DeviceIntPtr dev = NULL;
     char *config_info = NULL;
-    char *xwl_input_ptr = NULL;
     char *name = NULL;
     int rc;
 
     if (asprintf(&config_info, "%s:%d", driver, xwl_input_device->id) == -1) {
         config_info = NULL;
-        goto unwind;
-    }
-
-    if (asprintf(&xwl_input_ptr, "%p", xwl_input_device) == -1) {
-	xwl_input_ptr = NULL;
         goto unwind;
     }
 
@@ -287,9 +279,6 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
     add_option(&options, "config_info", config_info);
     add_option(&options, "driver", driver);
 
-    /* Wow ! super ugly ! */
-    add_option(&options, "xwl_input_ptr", xwl_input_ptr);
-
     if (strstr(driver, "keyboard"))
 	attrs.flags |= ATTR_KEYBOARD;
     if (strstr(driver, "pointer"))
@@ -305,11 +294,8 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 	pInfo->private = xwl_input_device;
     }
 
-    return dev;
-
 unwind:
     free(config_info);
-    free(xwl_input_ptr);
     while ((tmpo = options)) {
         options = tmpo->next;
         free(tmpo->key);        /* NULL if dev != NULL */
@@ -317,7 +303,7 @@ unwind:
         free(tmpo);
     }
 
-    return NULL;
+    return dev;
 }
 
 /* Use that code if the compositor want to delete an input device
