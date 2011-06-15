@@ -260,8 +260,12 @@ xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
 	return;
     }
 
-    wl_surface_map_toplevel(xwl_window->surface);
+
     wl_surface_attach(xwl_window->surface, xwl_window->buffer, 0, 0);
+    wl_surface_damage(xwl_window->surface, 0, 0,
+		      pixmap->drawable.width,
+		      pixmap->drawable.height);
+    wl_surface_map_toplevel(xwl_window->surface);
 
     wl_display_sync_callback(xwl_screen->display, free_pixmap, pixmap);
     pixmap->refcnt++;
