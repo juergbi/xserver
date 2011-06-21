@@ -260,12 +260,10 @@ xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
 	return;
     }
 
-
     wl_surface_attach(xwl_window->surface, xwl_window->buffer, 0, 0);
     wl_surface_damage(xwl_window->surface, 0, 0,
 		      pixmap->drawable.width,
 		      pixmap->drawable.height);
-    wl_surface_map_toplevel(xwl_window->surface);
 
     wl_display_sync_callback(xwl_screen->display, free_pixmap, pixmap);
     pixmap->refcnt++;
@@ -482,8 +480,6 @@ xwl_move_window(WindowPtr window, int x, int y,
 	dixLookupPrivate(&window->devPrivates, &xwl_window_private_key);
     if (xwl_window == NULL)
 	return;
-
-    wl_surface_map_toplevel(xwl_window->surface);
 }
 
 static void
