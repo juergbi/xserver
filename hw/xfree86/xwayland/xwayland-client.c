@@ -67,14 +67,30 @@ static const struct wl_compositor_listener compositor_listener = {
 
 static void
 display_handle_geometry(void *data,
-			struct wl_output *output,
-			int32_t x, int32_t y,
-			int32_t width, int32_t height)
+			struct wl_output *wl_output,
+			int x, int y,
+			int physical_width,
+			int physical_height,
+			int subpixel,
+			const char *make,
+			const char *model)
 {
     struct xwl_output *xwl_output = data;
 
     xwl_output->x = x;
     xwl_output->y = y;
+}
+
+static void
+display_handle_mode(void *data,
+		    struct wl_output *wl_output,
+		    uint32_t flags,
+		    int width,
+		    int height,
+		    int refresh)
+{
+    struct xwl_output *xwl_output = data;
+
     xwl_output->width = width;
     xwl_output->height = height;
 
@@ -84,6 +100,7 @@ display_handle_geometry(void *data,
 
 static const struct wl_output_listener output_listener = {
     display_handle_geometry,
+    display_handle_mode
 };
 
 static void
