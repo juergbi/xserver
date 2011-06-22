@@ -64,6 +64,7 @@ SOFTWARE.
 #include <dix-config.h>
 #endif
 
+#include <xorg-server.h>
 #ifdef WIN32
 #include <X11/Xwinsock.h>
 #endif
@@ -138,6 +139,7 @@ fd_set OutputPending;           /* clients with reply/event data ready to go */
 int MaxClients = 0;
 Bool NewOutputPending;          /* not yet attempted to write some new output */
 Bool AnyClientsWriteBlocked;    /* true if some client blocked on write */
+Bool NoListenAll;               /* Don't establish any listening sockets */
 
 static Bool RunFromSmartParent; /* send SIGUSR1 to parent process */
 Bool RunFromSigStopParent;      /* send SIGSTOP to our own process; Upstart (or
@@ -407,10 +409,15 @@ CreateWellKnownSockets(void)
      * number if specified on the command line, or to NULL when the -displayfd
      * option is used. */
     if (display) {
-        if (TryCreateSocket(atoi(display), &partial) &&
-            ListenTransCount >= 1)
-            if (!PartialNetwork && partial)
-                FatalError ("Failed to establish all listening sockets");
+        if (!NoListenAll) {
+            TryCreateSocket(atoi(display), &partial);
+        }
+
+        if (ListenTransCount >= 1) {
+            if (!PartialNetwork && partial) {
+                FatalError("Failed to establish all listening sockets");
+            }
+        }
     }
     else { /* -displayfd */
         Bool found = 0;
@@ -440,9 +447,10 @@ CreateWellKnownSockets(void)
             DefineSelf (fd);
     }
 
-    if (!XFD_ANYSET(&WellKnownConnections))
+    if (!XFD_ANYSET(&WellKnownConnections) && !NoListenAll)
         FatalError
             ("Cannot establish any listening sockets - Make sure an X server isn't already running");
+
 #if !defined(WIN32)
     OsSignal(SIGPIPE, SIG_IGN);
     OsSignal(SIGHUP, AutoResetServer);
@@ -1253,7 +1261,7 @@ MakeClientGrabPervious(ClientPtr client)
     }
 }
 
-#ifdef XQUARTZ
+#if defined(XQUARTZ) || defined(XORG_WAYLAND)
 /* Add a fd (from launchd) to our listeners */
 void
 ListenOnOpenFD(int fd, int noxauth)
@@ -1307,6 +1315,26 @@ ListenOnOpenFD(int fd, int noxauth)
 #ifdef XDMCP
     XdmcpReset();
 #endif
+}
+
+/* based on TRANS(SocketUNIXAccept) (XtransConnInfo ciptr, int *status) */
+void
+AddClientOnOpenFD(int fd)
+{
+    XtransConnInfo ciptr;
+    CARD32 connect_time;
+
+    ciptr = _XSERVTransReopenCOTSServer(5, fd, "@anonymous");
+
+    _XSERVTransSetOption(ciptr, TRANS_NONBLOCKING, 1);
+    ciptr->flags |= TRANS_NOXAUTH;
+
+    connect_time = GetTimeInMillis();
+
+    if (!AllocNewConnection(ciptr, fd, connect_time)) {
+        fprintf(stderr, "failed to create client for wayland server\n");
+        return;
+    }
 }
 
 #endif
