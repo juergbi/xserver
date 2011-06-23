@@ -299,7 +299,7 @@ xwl_create_window(WindowPtr window)
     screen->CreateWindow = xwl_create_window;
 
     if (!(xwl_screen->flags & XWL_FLAGS_ROOTLESS) ||
-	window->parent == NULL)
+	window->parent != NULL)
 	return ret;
 
     len = snprintf(buffer, sizeof buffer, "_NET_WM_CM_S%d", screen->myNum);
