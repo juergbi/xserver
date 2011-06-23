@@ -17,7 +17,6 @@ libxwayland_la_LDFLAGS = -module -avoid-version @LIBDRM_LIBS@ -lwayland-client
 libxwayland_ladir = $(moduledir)/extensions
 libxwayland_la_SOURCES =			\
 	xwayland.c				\
-	xwayland-client.c			\
 	xwayland-input.c			\
 	xwayland-private.h			\
 	drm-client-protocol.h			\

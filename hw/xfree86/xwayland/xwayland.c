@@ -1,5 +1,5 @@
 /*
- * Copyright © 2008 Kristian Høgsberg
+ * Copyright © 2008-2011 Kristian Høgsberg
  *
  * Permission to use, copy, modify, distribute, and sell this software
  * and its documentation for any purpose is hereby granted without
@@ -663,6 +663,155 @@ xwl_input_delayed_init(OsTimerPtr timer, CARD32 time, pointer data)
     return 0;
 }
 
+static void
+compositor_handle_visual(void *data,
+			 struct wl_compositor *compositor,
+			 uint32_t id, uint32_t token)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    switch (token) {
+    case WL_COMPOSITOR_VISUAL_ARGB32:
+	xwl_screen->argb_visual =
+	    wl_visual_create(xwl_screen->display, id, 1);
+	break;
+    case WL_COMPOSITOR_VISUAL_PREMULTIPLIED_ARGB32:
+	xwl_screen->premultiplied_argb_visual =
+	    wl_visual_create(xwl_screen->display, id, 1);
+	break;
+    case WL_COMPOSITOR_VISUAL_XRGB32:
+	xwl_screen->rgb_visual =
+	    wl_visual_create(xwl_screen->display, id, 1);
+	break;
+    }
+}
+
+static const struct wl_compositor_listener compositor_listener = {
+    compositor_handle_visual,
+};
+
+static void
+display_handle_geometry(void *data,
+			struct wl_output *wl_output,
+			int x, int y,
+			int physical_width,
+			int physical_height,
+			int subpixel,
+			const char *make,
+			const char *model)
+{
+    struct xwl_output *xwl_output = data;
+
+    xwl_output->x = x;
+    xwl_output->y = y;
+}
+
+static void
+display_handle_mode(void *data,
+		    struct wl_output *wl_output,
+		    uint32_t flags,
+		    int width,
+		    int height,
+		    int refresh)
+{
+    struct xwl_output *xwl_output = data;
+
+    xwl_output->width = width;
+    xwl_output->height = height;
+
+    xwl_output->xwl_screen->width = width;
+    xwl_output->xwl_screen->height = height;
+}
+
+static const struct wl_output_listener output_listener = {
+    display_handle_geometry,
+    display_handle_mode
+};
+
+static void
+create_output(struct xwl_screen *xwl_screen, uint32_t id,
+	      uint32_t version)
+{
+    struct xwl_output *xwl_output;
+
+    xwl_output = xwl_output_create(xwl_screen);
+
+    xwl_output->output = wl_output_create (xwl_screen->display, id, 1);
+    wl_output_add_listener(xwl_output->output,
+			   &output_listener, xwl_output);
+}
+
+static void
+global_handler(struct wl_display *display,
+	       uint32_t id,
+	       const char *interface,
+	       uint32_t version,
+	       void *data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    if (strcmp (interface, "wl_compositor") == 0) {
+	xwl_screen->compositor =
+	    wl_compositor_create (xwl_screen->display, id, 1);
+	wl_compositor_add_listener(xwl_screen->compositor,
+				   &compositor_listener, xwl_screen);
+    } else if (strcmp (interface, "wl_shm") == 0) {
+        xwl_screen->shm = wl_shm_create (xwl_screen->display, id, 1);
+    } else if (strcmp (interface, "wl_output") == 0) {
+        create_output(xwl_screen, id, 1);
+    }
+}
+
+static int
+source_update(uint32_t mask, void *data)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    xwl_screen->mask = mask;
+
+    return 0;
+}
+
+static void
+wakeup_handler(pointer data, int err, pointer read_mask)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    if (err >= 0 && FD_ISSET(xwl_screen->wayland_fd, (fd_set *) read_mask))
+	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+}
+
+static void
+block_handler(pointer data, struct timeval **tv, pointer read_mask)
+{
+    struct xwl_screen *xwl_screen = data;
+
+    /* The X servers "main loop" doesn't let us select for
+     * writable, so let's just do a blocking write here. */
+
+    while (xwl_screen->mask & WL_DISPLAY_WRITABLE)
+	wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
+}
+
+static void
+sync_callback(void *data)
+{
+    int *done = data;
+
+    *done = 1;
+}
+
+void
+xwl_force_roundtrip(struct xwl_screen *xwl_screen)
+{
+    int done = 0;
+
+    wl_display_sync_callback(xwl_screen->display, sync_callback, &done);
+    wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
+    while (!done)
+	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+}
+
 int
 xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 {
@@ -701,8 +850,11 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     xwl_screen->sprite_funcs = pointer_priv->spriteFuncs;
     pointer_priv->spriteFuncs = &xwl_pointer_sprite_funcs;
 
-    wayland_screen_init(xwl_screen);
+    AddGeneralSocket(xwl_screen->wayland_fd);
+    RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler, xwl_screen);
+
     TimerSet(NULL, 0, 1, xwl_input_delayed_init, xwl_screen);
+
     return Success;
 }
 
@@ -735,8 +887,33 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 
     xf86InitialConfiguration(scrninfo, TRUE);
 
-    ret = wayland_screen_pre_init(xwl_screen, xwl_screen->driver->use_drm);
-    if (ret != Success)
+    xwl_screen->display = wl_display_connect(NULL);
+    if (xwl_screen->display == NULL) {
+	ErrorF("wl_display_create failed\n");
+	return NULL;
+    }
+
+    /* Set up listener so we'll catch all events. */
+    xwl_screen->global_listener =
+	    wl_display_add_global_listener(xwl_screen->display,
+					   global_handler, xwl_screen);
+
+    /* Process connection events. */
+    wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+
+    xwl_screen->wayland_fd =
+	wl_display_get_fd(xwl_screen->display, source_update, xwl_screen);
+
+#ifdef WITH_LIBDRM
+    if (xwl_screen->driver->use_drm)
+	ret = xwl_drm_pre_init(xwl_screen);
+    if (xwl_screen->driver->use_drm && ret != Success)
+	return NULL;
+#endif
+
+    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
+	xwl_force_roundtrip(xwl_screen);
+    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
 	return NULL;
 
     return xwl_screen;
@@ -756,7 +933,34 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
 
 void xwl_screen_close(struct xwl_screen *xwl_screen)
 {
-    wayland_screen_close(xwl_screen);
+    struct xwl_input_device *xwl_input_device, *itmp;
+    struct xwl_window *xwl_window, *wtmp;
+
+    if (xwl_screen->input_listener)
+	wl_display_remove_global_listener(xwl_screen->display,
+					  xwl_screen->input_listener);
+
+
+    list_for_each_entry_safe(xwl_input_device, itmp,
+			     &xwl_screen->input_device_list, link) {
+	wl_input_device_destroy(xwl_input_device->input_device);
+	free(xwl_input_device);
+    }
+    list_for_each_entry_safe(xwl_window, wtmp,
+			     &xwl_screen->window_list, link) {
+	wl_buffer_destroy(xwl_window->buffer);
+	wl_surface_destroy(xwl_window->surface);
+	free(xwl_window);
+    }
+
+    xwl_screen->input_listener = NULL;
+    list_init(&xwl_screen->input_device_list);
+    list_init(&xwl_screen->damage_window_list);
+    list_init(&xwl_screen->window_list);
+    xwl_screen->root_x = 0;
+    xwl_screen->root_y = 0;
+
+    xwl_force_roundtrip(xwl_screen);
 }
 
 void xwl_screen_destroy(struct xwl_screen *xwl_screen)
