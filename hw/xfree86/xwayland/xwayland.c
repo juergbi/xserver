@@ -991,8 +991,8 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 	    box = &RegionRects(region)[i];
 	    wl_surface_damage(xwl_window->surface,
 			      box->x1, box->y1,
-			      box->x2 - box->x1,
-			      box->y2 - box->y1);
+			      box->x2 - box->x1 + 1,
+			      box->y2 - box->y1 + 1);
 	}
 	DamageEmpty(xwl_window->damage);
     }
