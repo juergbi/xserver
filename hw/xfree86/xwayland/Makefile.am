@@ -18,6 +18,7 @@ libxwayland_ladir = $(moduledir)/extensions
 libxwayland_la_SOURCES =			\
 	xwayland.c				\
 	xwayland-input.c			\
+	xwayland-cursor.c			\
 	xwayland-private.h			\
 	drm-client-protocol.h			\
 	drm-protocol.c				\
