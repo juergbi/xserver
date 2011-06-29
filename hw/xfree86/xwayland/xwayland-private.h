@@ -56,6 +56,7 @@ struct xwl_screen {
     struct wl_visual		*argb_visual;
     struct wl_visual		*rgb_visual;
     struct wl_visual		*premultiplied_argb_visual;
+    struct xserver		*xorg_server;
     uint32_t			 mask;
     uint32_t			 flags;
     char			*device_name;

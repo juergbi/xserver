@@ -36,6 +36,7 @@
 #include <wayland-client.h>
 #include <X11/extensions/compositeproto.h>
 
+#include <xorg-server.h>
 #include <compositeext.h>
 #include <selection.h>
 #include <extinit.h>
@@ -44,9 +45,11 @@
 #include <xf86Crtc.h>
 #include <xf86Priv.h>
 #include <mipointrst.h>
+#include <os.h>
 
 #include "xwayland.h"
 #include "xwayland-private.h"
+#include "xserver-client-protocol.h"
 
 /*
  * TODO:
@@ -368,6 +371,9 @@ xwl_realize_window(WindowPtr window)
 	return FALSE;
     }
 
+    xserver_set_window_id(xwl_screen->xorg_server,
+			  xwl_window->surface, window->drawable.id);
+
     visual = wVisual(window);
     for (i = 0; i < screen->numVisuals; i++)
 	if (screen->visuals[i].vid == visual)
@@ -391,6 +397,7 @@ xwl_realize_window(WindowPtr window)
 
     list_add(&xwl_window->link, &xwl_screen->window_list);
     list_init(&xwl_window->link_damage);
+
     return ret;
 }
 
@@ -652,15 +659,43 @@ static miPointerSpriteFuncRec xwl_pointer_sprite_funcs =
     xwl_device_cursor_cleanup
 };
 
+static void
+xserver_client(void *data, struct xserver *xserver, int fd)
+{
+    AddClientOnOpenFD(fd);
+}
+
+static void
+xserver_listen_socket(void *data, struct xserver *xserver, int fd)
+{
+    ListenOnOpenFD(fd, TRUE);
+}
+
+static const struct xserver_listener xserver_listener = {
+    xserver_client,
+    xserver_listen_socket
+};
+
 static CARD32
 xwl_input_delayed_init(OsTimerPtr timer, CARD32 time, pointer data)
 {
     struct xwl_screen *xwl_screen = data;
+    uint32_t id;
 
     xwl_input_init(xwl_screen);
     TimerFree(timer);
 
-    return 0;
+    id = wl_display_get_global(xwl_screen->display, "xserver", 1);
+    if (id == 0) {
+	ErrorF("No xserver interface");
+	return Success;
+    }
+
+    xwl_screen->xorg_server = xserver_create (xwl_screen->display, id, 1);
+    xserver_add_listener(xwl_screen->xorg_server,
+			 &xserver_listener, xwl_screen);
+
+    return Success;
 }
 
 static void
