@@ -105,7 +105,10 @@ struct xwl_input_device {
 
 struct xwl_screen *xwl_screen_get(ScreenPtr screen);
 
+void xwayland_screen_preinit_output(struct xwl_screen *xwl_screen, ScrnInfoPtr scrninfo);
+
 int xwl_screen_init_cursor(struct xwl_screen *xwl_screen, ScreenPtr screen);
+int xwl_screen_init_window(struct xwl_screen *xwl_screen, ScreenPtr screen);
 
 struct xwl_output *xwl_output_create(struct xwl_screen *xwl_screen);
 
