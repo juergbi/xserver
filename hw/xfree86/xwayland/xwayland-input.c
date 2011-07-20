@@ -233,101 +233,37 @@ xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin)
     return module;
 }
 
-static void
-add_option(InputOption **options, const char *key, const char *value)
-{
-    if (!value || *value == '\0')
-        return;
-
-    for (; *options; options = &(*options)->next)
-        ;
-    *options = calloc(sizeof(**options), 1);
-    if (!*options) /* Yeesh. */
-        return;
-    (*options)->key = strdup(key);
-    (*options)->value = strdup(value);
-    (*options)->next = NULL;
-}
-
 static DeviceIntPtr
 device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 {
-    InputOption *options = NULL, *tmpo = NULL;
-    InputAttributes attrs = {0};
     DeviceIntPtr dev = NULL;
-    char *config_info = NULL;
-    char *name = NULL;
+    InputInfoPtr pInfo;
     int rc;
 
-    if (asprintf(&config_info, "%s:%d", driver, xwl_input_device->id) == -1) {
-        config_info = NULL;
-        goto unwind;
-    }
-
-    name = config_info;
-
-    options = calloc(sizeof(*options), 1);
-    if (!options)
+    pInfo = xf86AllocateInput();
+    if (!pInfo)
         return NULL;
 
-    options->key = strdup("_source");
-    options->value = strdup("server/xwayland");
-    if (!options->key || !options->value)
-        goto unwind;
+    pInfo->driver = xstrdup(driver);
 
-    add_option(&options, "name", name);
-    add_option(&options, "config_info", config_info);
-    add_option(&options, "driver", driver);
-
-    if (strstr(driver, "keyboard"))
-	attrs.flags |= ATTR_KEYBOARD;
-    if (strstr(driver, "pointer"))
-	attrs.flags |= ATTR_POINTER;
-
-    LogMessage(X_INFO, "config/xwayland: Adding input device %s\n", name);
-    if ((rc = NewInputDeviceRequest(options, &attrs, &dev)) != Success) {
-        LogMessage(X_ERROR, "config/xwayland: NewInputDeviceRequest failed (%d)\n", rc);
+    if (asprintf(&pInfo->name, "%s:%d",
+		 pInfo->driver, xwl_input_device->id) == -1) {
+	free(pInfo);
+	return NULL;
     }
 
-    if (dev) {
-	InputInfoPtr pInfo  = dev->public.devicePrivate;
-	pInfo->private = xwl_input_device;
+    pInfo->private = xwl_input_device;
+
+    rc = xf86NewInputDevice(pInfo, &dev, 1);
+    if (rc != Success) {
+	free(pInfo);
+	return NULL;
     }
 
-unwind:
-    free(config_info);
-    while ((tmpo = options)) {
-        options = tmpo->next;
-        free(tmpo->key);        /* NULL if dev != NULL */
-        free(tmpo->value);      /* NULL if dev != NULL */
-        free(tmpo);
-    }
+    LogMessage(X_INFO, "config/xwayland: Adding input device %s\n",
+	       pInfo->name);
 
     return dev;
-}
-
-/* Use that code if the compositor want to delete an input device
-static void
-device_removed(DeviceIntPtr dev)
-{
-    LogMessage(X_INFO, "config/xwayland: removing device %s\n", dev->name);
-
-    OsBlockSignals();
-    ProcessInputEvents();
-    DeleteInputDeviceRequest(dev);
-    OsReleaseSignals();
-}
-*/
-
-static void
-add_input_device(struct xwl_input_device *xwl_input_device)
-{
-    if (!xwl_input_device->pointer)
-	xwl_input_device->pointer =
-	    device_added(xwl_input_device, "xwayland-pointer");
-    if (!xwl_input_device->keyboard)
-	xwl_input_device->keyboard =
-	    device_added(xwl_input_device, "xwayland-keyboard");
 }
 
 static void
@@ -478,7 +414,10 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
     xwl_input_device->xwl_screen = xwl_screen;
     list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
 
-    add_input_device(xwl_input_device);
+    xwl_input_device->pointer =
+	device_added(xwl_input_device, "xwayland-pointer");
+    xwl_input_device->keyboard =
+	device_added(xwl_input_device, "xwayland-keyboard");
 
     xwl_input_device->input_device =
         wl_input_device_create (xwl_screen->display, id, 1);
