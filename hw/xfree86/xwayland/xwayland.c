@@ -70,14 +70,15 @@ static const struct xserver_listener xserver_listener = {
     xserver_listen_socket
 };
 
-static CARD32
-xwl_input_delayed_init(OsTimerPtr timer, CARD32 time, pointer data)
+static void
+xwl_input_delayed_init(void *data)
 {
     struct xwl_screen *xwl_screen = data;
     uint32_t id;
 
+    ErrorF("xwl_input_delayed_init\n");
+
     xwl_input_init(xwl_screen);
-    TimerFree(timer);
 
     id = wl_display_get_global(xwl_screen->display, "xserver", 1);
     if (id == 0) {
@@ -206,7 +207,8 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     AddGeneralSocket(xwl_screen->wayland_fd);
     RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler, xwl_screen);
 
-    TimerSet(NULL, 0, 1, xwl_input_delayed_init, xwl_screen);
+    wl_display_sync_callback(xwl_screen->display,
+			     xwl_input_delayed_init, xwl_screen);
 
     return Success;
 }
