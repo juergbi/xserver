@@ -182,15 +182,10 @@ xwl_output_create(struct xwl_screen *xwl_screen)
     }
 
     xwl_output->xwl_screen = xwl_screen;
-    xwl_output->width = xwl_screen->width = 800;
-    xwl_output->height = xwl_screen->height = 600;
 
     xf86output = xf86OutputCreate(xwl_screen->scrninfo,
 				  &output_funcs, "XWAYLAND-1");
     xf86output->driver_private = xwl_output;
-    xf86output->mm_width = 300;
-    xf86output->mm_height = 240;
-    xf86output->subpixel_order = SubPixelHorizontalRGB;
     xf86output->possible_crtcs = 1;
     xf86output->possible_clones = 1;
 
@@ -229,6 +224,30 @@ display_handle_geometry(void *data,
 			const char *model)
 {
     struct xwl_output *xwl_output = data;
+
+    xwl_output->xf86output->mm_width = physical_width;
+    xwl_output->xf86output->mm_height = physical_height;
+
+    switch (subpixel) {
+    case WL_OUTPUT_SUBPIXEL_UNKNOWN:
+	xwl_output->xf86output->subpixel_order = SubPixelUnknown;
+	break;
+    case WL_OUTPUT_SUBPIXEL_NONE:
+	xwl_output->xf86output->subpixel_order = SubPixelNone;
+	break;
+    case WL_OUTPUT_SUBPIXEL_HORIZONTAL_RGB:
+	xwl_output->xf86output->subpixel_order = SubPixelHorizontalRGB;
+	break;
+    case WL_OUTPUT_SUBPIXEL_HORIZONTAL_BGR:
+	xwl_output->xf86output->subpixel_order = SubPixelHorizontalBGR;
+	break;
+    case WL_OUTPUT_SUBPIXEL_VERTICAL_RGB:
+	xwl_output->xf86output->subpixel_order = SubPixelVerticalRGB;
+	break;
+    case WL_OUTPUT_SUBPIXEL_VERTICAL_BGR:
+	xwl_output->xf86output->subpixel_order = SubPixelVerticalBGR;
+	break;
+    }
 
     xwl_output->x = x;
     xwl_output->y = y;
