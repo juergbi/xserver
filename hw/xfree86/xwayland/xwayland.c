@@ -81,16 +81,11 @@ xwl_input_delayed_init(void *data)
     xwl_input_init(xwl_screen);
 
     id = wl_display_get_global(xwl_screen->display, "xserver", 1);
-    if (id == 0) {
-	ErrorF("No xserver interface");
-	return Success;
+    if (id != 0) {
+	xwl_screen->xorg_server = xserver_create (xwl_screen->display, id, 1);
+	xserver_add_listener(xwl_screen->xorg_server,
+			     &xserver_listener, xwl_screen);
     }
-
-    xwl_screen->xorg_server = xserver_create (xwl_screen->display, id, 1);
-    xserver_add_listener(xwl_screen->xorg_server,
-			 &xserver_listener, xwl_screen);
-
-    return Success;
 }
 
 static void

@@ -166,8 +166,9 @@ xwl_realize_window(WindowPtr window)
 	return FALSE;
     }
 
-    xserver_set_window_id(xwl_screen->xorg_server,
-			  xwl_window->surface, window->drawable.id);
+    if (xwl_screen->xorg_server)
+	xserver_set_window_id(xwl_screen->xorg_server,
+			      xwl_window->surface, window->drawable.id);
 
     visual = wVisual(window);
     for (i = 0; i < screen->numVisuals; i++)
