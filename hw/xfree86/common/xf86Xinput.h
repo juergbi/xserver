@@ -172,14 +172,11 @@ extern _X_EXPORT void xf86AddEnabledDevice(InputInfoPtr pInfo);
 extern _X_EXPORT void xf86RemoveEnabledDevice(InputInfoPtr pInfo);
 extern _X_EXPORT void xf86DisableDevice(DeviceIntPtr dev, Bool panic);
 extern _X_EXPORT void xf86EnableDevice(DeviceIntPtr dev);
-
-/* not exported */
-int xf86NewInputDevice(InputInfoPtr pInfo, DeviceIntPtr *pdev, BOOL is_auto);
-InputInfoPtr xf86AllocateInput(void);
+extern _X_EXPORT int xf86NewInputDevice(InputInfoPtr pInfo, DeviceIntPtr *pdev, BOOL is_auto);
+extern _X_EXPORT InputInfoPtr xf86AllocateInput(void);
 
 /* xf86Helper.c */
-extern _X_EXPORT void xf86AddInputDriver(InputDriverPtr driver, pointer module,
-                                         int flags);
+extern _X_EXPORT void xf86AddInputDriver(InputDriverPtr driver, pointer module, int flags);
 extern _X_EXPORT void xf86DeleteInputDriver(int drvIndex);
 extern _X_EXPORT InputDriverPtr xf86LookupInputDriver(const char *name);
 extern _X_EXPORT InputInfoPtr xf86LookupInput(const char *name);
