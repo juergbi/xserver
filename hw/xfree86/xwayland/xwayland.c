@@ -248,8 +248,6 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 	return NULL;
     }
 
-    xwayland_screen_preinit_output(xwl_screen, scrninfo);
-
     /* Set up listener so we'll catch all events. */
     xwl_screen->global_listener =
 	    wl_display_add_global_listener(xwl_screen->display,
@@ -267,6 +265,8 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
     if (xwl_screen->driver->use_drm && ret != Success)
 	return NULL;
 #endif
+
+    xwayland_screen_preinit_output(xwl_screen, scrninfo);
 
     if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
 	xwl_force_roundtrip(xwl_screen);

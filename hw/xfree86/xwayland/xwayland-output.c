@@ -195,8 +195,6 @@ xwl_output_create(struct xwl_screen *xwl_screen)
     xwl_output->xf86output = xf86output;
     xwl_output->xf86crtc = xf86crtc;
 
-    xwl_screen->xwl_output = xwl_output;
-
     return xwl_output;
 }
 
@@ -224,6 +222,7 @@ display_handle_geometry(void *data,
 			const char *model)
 {
     struct xwl_output *xwl_output = data;
+    struct xwl_screen *xwl_screen = xwl_output->xwl_screen;
 
     xwl_output->xf86output->mm_width = physical_width;
     xwl_output->xf86output->mm_height = physical_height;
@@ -251,6 +250,8 @@ display_handle_geometry(void *data,
 
     xwl_output->x = x;
     xwl_output->y = y;
+
+    xwl_screen->xwl_output = xwl_output;
 }
 
 static void
@@ -301,9 +302,13 @@ xwayland_screen_preinit_output(struct xwl_screen *xwl_screen, ScrnInfoPtr scrnin
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
 
-    xf86InitialConfiguration(scrninfo, TRUE);
-
     xwl_screen->global_listener =
 	wl_display_add_global_listener(xwl_screen->display,
 				       global_handler, xwl_screen);
+
+    wl_display_flush(xwl_screen->display);
+    while (xwl_screen->xwl_output == NULL)
+	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+    
+    xf86InitialConfiguration(scrninfo, TRUE);
 }
