@@ -254,6 +254,11 @@ compRestoreWindow(WindowPtr pWin, PixmapPtr pPixmap)
     }
 }
 
+int CompositeRedirectWindow (WindowPtr pWin, int update)
+{
+    return compRedirectWindow (serverClient, pWin, update);
+}
+
 /*
  * Free one of the per-client per-window resources, clearing
  * redirect and the per-window pointer as appropriate
@@ -410,11 +415,6 @@ compRedirectSubwindows(ClientPtr pClient, WindowPtr pWin, int update)
         pWin->inhibitBGPaint = TRUE;
     }
     return Success;
-}
-
-int CompositeRedirectSubwindows (WindowPtr pWin, int update)
-{
-    return compRedirectSubwindows (serverClient, pWin, update);
 }
 
 /*

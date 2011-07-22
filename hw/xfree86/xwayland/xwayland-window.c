@@ -97,22 +97,23 @@ xwl_create_window(WindowPtr window)
     xwl_screen->CreateWindow = screen->CreateWindow;
     screen->CreateWindow = xwl_create_window;
 
-    if (!(xwl_screen->flags & XWL_FLAGS_ROOTLESS) ||
-	window->parent != NULL)
+    if (!(xwl_screen->flags & XWL_FLAGS_ROOTLESS))
 	return ret;
 
-    len = snprintf(buffer, sizeof buffer, "_NET_WM_CM_S%d", screen->myNum);
-    name = MakeAtom(buffer, len, TRUE);
-    rc = AddSelection(&selection, name, serverClient);
-    if (rc != Success)
-	return ret;
+    if (window == screen->root) {
+	len = snprintf(buffer, sizeof buffer, "_NET_WM_CM_S%d", screen->myNum);
+	name = MakeAtom(buffer, len, TRUE);
+	rc = AddSelection(&selection, name, serverClient);
+	if (rc != Success)
+	    return ret;
 
-    selection->lastTimeChanged = currentTime;
-    selection->window = window->drawable.id;
-    selection->pWin = window;
-    selection->client = serverClient;
-
-    CompositeRedirectSubwindows(window, CompositeRedirectManual);
+	selection->lastTimeChanged = currentTime;
+	selection->window = window->drawable.id;
+	selection->pWin = window;
+	selection->client = serverClient;
+    } else if (window->parent == screen->root) {
+	CompositeRedirectWindow(window, CompositeRedirectManual);
+    }
 
     return ret;
 }
