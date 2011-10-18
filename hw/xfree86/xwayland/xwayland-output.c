@@ -289,7 +289,8 @@ global_handler(struct wl_display *display,
     if (strcmp (interface, "wl_output") == 0) {
 	xwl_output = xwl_output_create(xwl_screen);
 
-	xwl_output->output = wl_output_create (xwl_screen->display, id, 1);
+	xwl_output->output = wl_display_bind(xwl_screen->display,
+					     id, &wl_output_interface);
 	wl_output_add_listener(xwl_output->output,
 			       &output_listener, xwl_output);
     }

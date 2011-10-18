@@ -90,7 +90,6 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
     char filename[] = "/tmp/wayland-shm-XXXXXX";
     int fd;
     struct wl_buffer *buffer;
-    struct wl_visual *visual;
     void *data;
 
     xwl_screen = xwl_screen_get(screen);
@@ -122,10 +121,10 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 	expand_source_and_mask(cursor, data);
     munmap(data, size);
 
-    visual = xwl_screen->argb_visual;
     buffer = wl_shm_create_buffer(xwl_screen->shm, fd,
 				  cursor->bits->width, cursor->bits->height,
-				  cursor->bits->width * 4, visual);
+				  cursor->bits->width * 4,
+				  WL_SHM_FORMAT_ARGB32);
     close(fd);
 
     dixSetPrivate(&cursor->devPrivates, &xwl_cursor_private_key, buffer);

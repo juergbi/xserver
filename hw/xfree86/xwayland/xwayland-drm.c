@@ -55,6 +55,11 @@ drm_handle_device (void *data, struct wl_drm *drm, const char *device)
 }
 
 static void
+drm_handle_format(void *data, struct wl_drm *wl_drm, uint32_t format)
+{
+}
+
+static void
 drm_handle_authenticated (void *data, struct wl_drm *drm)
 {
     struct xwl_screen *xwl_screen = data;
@@ -64,8 +69,9 @@ drm_handle_authenticated (void *data, struct wl_drm *drm)
 
 static const struct wl_drm_listener xwl_drm_listener =
 {
-  drm_handle_device,
-  drm_handle_authenticated
+    drm_handle_device,
+    drm_handle_format,
+    drm_handle_authenticated
 };
 
 static void
@@ -78,7 +84,8 @@ drm_handler(struct wl_display *display,
     struct xwl_screen *xwl_screen = data;
 
     if (strcmp (interface, "wl_drm") == 0) {
-	xwl_screen->drm = wl_drm_create (xwl_screen->display, id, 1);
+	xwl_screen->drm = wl_display_bind(xwl_screen->display,
+					  id, &wl_drm_interface);
 	wl_drm_add_listener (xwl_screen->drm, &xwl_drm_listener, xwl_screen);
     }
 }
@@ -92,7 +99,7 @@ xwl_drm_pre_init(struct xwl_screen *xwl_screen)
 	wl_display_add_global_listener(xwl_screen->display,
 				       drm_handler, xwl_screen);
 
-    xwl_force_roundtrip(xwl_screen);
+    wl_display_roundtrip(xwl_screen->display);
 
     ErrorF("wayland_drm_screen_init, device name %s\n",
 	   xwl_screen->device_name);
@@ -110,7 +117,7 @@ xwl_drm_pre_init(struct xwl_screen *xwl_screen)
 
     wl_drm_authenticate(xwl_screen->drm, magic);
 
-    xwl_force_roundtrip(xwl_screen);
+    wl_display_roundtrip(xwl_screen->display);
 
     ErrorF("opened drm fd: %d\n", xwl_screen->drm_fd);
 
@@ -147,13 +154,29 @@ int
 xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 			     PixmapPtr pixmap, uint32_t name)
 {
+    VisualID visual;
+    uint32_t format;
+    WindowPtr window = xwl_window->window;
+    ScreenPtr screen = window->drawable.pScreen;
+    int i;
+
+    visual = wVisual(window);
+    for (i = 0; i < screen->numVisuals; i++)
+	if (screen->visuals[i].vid == visual)
+	    break;
+
+    if (screen->visuals[i].nplanes == 32)
+	format = WL_DRM_FORMAT_PREMULTIPLIED_ARGB32;
+    else
+	format = WL_DRM_FORMAT_XRGB32;
+
     xwl_window->buffer =
       wl_drm_create_buffer(xwl_window->xwl_screen->drm,
 			   name,
 			   pixmap->drawable.width,
 			   pixmap->drawable.height,
 			   pixmap->devKind,
-			   xwl_window->visual);
+			   format);
 
     return xwl_window->buffer ? Success : BadDrawable;
 }

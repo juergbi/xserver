@@ -71,48 +71,27 @@ static const struct xserver_listener xserver_listener = {
 };
 
 static void
-xwl_input_delayed_init(void *data)
+xwl_input_delayed_init(void *data, struct wl_callback *callback, uint32_t time)
 {
     struct xwl_screen *xwl_screen = data;
     uint32_t id;
 
     ErrorF("xwl_input_delayed_init\n");
 
+    wl_callback_destroy(callback);
     xwl_input_init(xwl_screen);
 
     id = wl_display_get_global(xwl_screen->display, "xserver", 1);
     if (id != 0) {
-	xwl_screen->xorg_server = xserver_create (xwl_screen->display, id, 1);
+        xwl_screen->xorg_server = wl_display_bind(xwl_screen->display,
+						  id, &xserver_interface);
 	xserver_add_listener(xwl_screen->xorg_server,
 			     &xserver_listener, xwl_screen);
     }
 }
 
-static void
-compositor_handle_visual(void *data,
-			 struct wl_compositor *compositor,
-			 uint32_t id, uint32_t token)
-{
-    struct xwl_screen *xwl_screen = data;
-
-    switch (token) {
-    case WL_COMPOSITOR_VISUAL_ARGB32:
-	xwl_screen->argb_visual =
-	    wl_visual_create(xwl_screen->display, id, 1);
-	break;
-    case WL_COMPOSITOR_VISUAL_PREMULTIPLIED_ARGB32:
-	xwl_screen->premultiplied_argb_visual =
-	    wl_visual_create(xwl_screen->display, id, 1);
-	break;
-    case WL_COMPOSITOR_VISUAL_XRGB32:
-	xwl_screen->rgb_visual =
-	    wl_visual_create(xwl_screen->display, id, 1);
-	break;
-    }
-}
-
-static const struct wl_compositor_listener compositor_listener = {
-    compositor_handle_visual,
+static const struct wl_callback_listener delayed_init_listner = {
+	xwl_input_delayed_init
 };
 
 static void
@@ -126,11 +105,11 @@ global_handler(struct wl_display *display,
 
     if (strcmp (interface, "wl_compositor") == 0) {
 	xwl_screen->compositor =
-	    wl_compositor_create (xwl_screen->display, id, 1);
-	wl_compositor_add_listener(xwl_screen->compositor,
-				   &compositor_listener, xwl_screen);
+		wl_display_bind(xwl_screen->display,
+				id, &wl_compositor_interface);
     } else if (strcmp (interface, "wl_shm") == 0) {
-        xwl_screen->shm = wl_shm_create (xwl_screen->display, id, 1);
+        xwl_screen->shm = wl_display_bind(xwl_screen->display,
+					  id, &wl_shm_interface);
     }
 }
 
@@ -165,28 +144,11 @@ block_handler(pointer data, struct timeval **tv, pointer read_mask)
 	wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
 }
 
-static void
-sync_callback(void *data)
-{
-    int *done = data;
-
-    *done = 1;
-}
-
-void
-xwl_force_roundtrip(struct xwl_screen *xwl_screen)
-{
-    int done = 0;
-
-    wl_display_sync_callback(xwl_screen->display, sync_callback, &done);
-    wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
-    while (!done)
-	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
-}
-
 int
 xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
 {
+    struct wl_callback *callback;
+
     xwl_screen->screen = screen;
 
     if (!dixRegisterPrivateKey(&xwl_screen_private_key, PRIVATE_SCREEN, 0))
@@ -202,8 +164,8 @@ xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen)
     AddGeneralSocket(xwl_screen->wayland_fd);
     RegisterBlockAndWakeupHandlers(block_handler, wakeup_handler, xwl_screen);
 
-    wl_display_sync_callback(xwl_screen->display,
-			     xwl_input_delayed_init, xwl_screen);
+    callback = wl_display_sync(xwl_screen->display);
+    wl_callback_add_listener(callback, &delayed_init_listner, xwl_screen);
 
     return Success;
 }
@@ -263,22 +225,33 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 
     xwayland_screen_preinit_output(xwl_screen, scrninfo);
 
-    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
-	xwl_force_roundtrip(xwl_screen);
-    if (!xwl_screen->premultiplied_argb_visual || !xwl_screen->rgb_visual)
-	return NULL;
-
     return xwl_screen;
 }
 
 int
 xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
-				PixmapPtr pixmap, int fd)
+			     PixmapPtr pixmap, int fd)
 {
+    VisualID visual;
+    uint32_t format;
+    WindowPtr window = xwl_window->window;
+    ScreenPtr screen = window->drawable.pScreen;
+    int i;
+
+    visual = wVisual(window);
+    for (i = 0; i < screen->numVisuals; i++)
+	if (screen->visuals[i].vid == visual)
+	    break;
+
+    if (screen->visuals[i].nplanes == 32)
+	format = WL_SHM_FORMAT_PREMULTIPLIED_ARGB32;
+    else
+	format = WL_SHM_FORMAT_XRGB32;
+
     xwl_window->buffer =
       wl_shm_create_buffer(xwl_window->xwl_screen->shm, fd,
 			   pixmap->drawable.width, pixmap->drawable.height,
-			   pixmap->drawable.width * 4, xwl_window->visual);
+			   pixmap->drawable.width * 4, format);
 
     return xwl_window->buffer ? Success : BadDrawable;
 }
@@ -312,7 +285,7 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
     xwl_screen->root_x = 0;
     xwl_screen->root_y = 0;
 
-    xwl_force_roundtrip(xwl_screen);
+    wl_display_roundtrip(xwl_screen->display);
 }
 
 void xwl_screen_destroy(struct xwl_screen *xwl_screen)

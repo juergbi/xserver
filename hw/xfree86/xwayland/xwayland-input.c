@@ -420,7 +420,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
 	device_added(xwl_input_device, "xwayland-keyboard");
 
     xwl_input_device->input_device =
-        wl_input_device_create (xwl_screen->display, id, 1);
+        wl_display_bind(xwl_screen->display, id, &wl_input_device_interface);
     xwl_input_device->id = id;
 
     wl_input_device_add_listener(xwl_input_device->input_device,

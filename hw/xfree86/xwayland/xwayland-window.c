@@ -45,18 +45,25 @@
 
 static DevPrivateKeyRec xwl_window_private_key;
 
-static void free_pixmap(void *data)
+static void
+free_pixmap(void *data, struct wl_callback *callback, uint32_t time)
 {
     PixmapPtr pixmap = data;
     ScreenPtr screen = pixmap->drawable.pScreen;
 
     (*screen->DestroyPixmap)(pixmap);
+    wl_callback_destroy(callback);
 }
+
+static const struct wl_callback_listener free_pixmap_listener = {
+	free_pixmap,
+};
 
 static void
 xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
 {
     struct xwl_screen *xwl_screen = xwl_window->xwl_screen;
+    struct wl_callback *callback;
 
     /* We can safely destroy the buffer because we only use one buffer
      * per surface in xwayland model */
@@ -75,7 +82,8 @@ xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
 		      pixmap->drawable.width,
 		      pixmap->drawable.height);
 
-    wl_display_sync_callback(xwl_screen->display, free_pixmap, pixmap);
+    callback = wl_display_sync(xwl_screen->display);
+    wl_callback_add_listener(callback, &free_pixmap_listener, pixmap);
     pixmap->refcnt++;
 }
 
@@ -138,9 +146,7 @@ xwl_realize_window(WindowPtr window)
     ScreenPtr screen = window->drawable.pScreen;
     struct xwl_screen *xwl_screen;
     struct xwl_window *xwl_window;
-    VisualID visual;
     Bool ret;
-    int i;
 
     xwl_screen = xwl_screen_get(screen);
 
@@ -170,16 +176,6 @@ xwl_realize_window(WindowPtr window)
     if (xwl_screen->xorg_server)
 	xserver_set_window_id(xwl_screen->xorg_server,
 			      xwl_window->surface, window->drawable.id);
-
-    visual = wVisual(window);
-    for (i = 0; i < screen->numVisuals; i++)
-	if (screen->visuals[i].vid == visual)
-	    break;
-
-    if (screen->visuals[i].nplanes == 32)
-	xwl_window->visual = xwl_screen->premultiplied_argb_visual;
-    else
-	xwl_window->visual = xwl_screen->rgb_visual;
 
     wl_surface_set_user_data(xwl_window->surface, xwl_window);
     xwl_window_attach(xwl_window, (*screen->GetWindowPixmap)(window));

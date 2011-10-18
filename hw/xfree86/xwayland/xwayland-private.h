@@ -29,7 +29,6 @@
 struct xwl_window {
     struct xwl_screen		*xwl_screen;
     struct wl_surface		*surface;
-    struct wl_visual		*visual;
     struct wl_buffer		*buffer;
     WindowPtr			 window;
     DamagePtr			 damage;
@@ -53,9 +52,6 @@ struct xwl_screen {
     struct wl_global_listener   *input_listener;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
-    struct wl_visual		*argb_visual;
-    struct wl_visual		*rgb_visual;
-    struct wl_visual		*premultiplied_argb_visual;
     struct xserver		*xorg_server;
     uint32_t			 mask;
     uint32_t			 flags;
