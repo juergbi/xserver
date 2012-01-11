@@ -244,9 +244,9 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
 	    break;
 
     if (screen->visuals[i].nplanes == 32)
-	format = WL_SHM_FORMAT_PREMULTIPLIED_ARGB32;
+	format = WL_SHM_FORMAT_ARGB8888;
     else
-	format = WL_SHM_FORMAT_XRGB32;
+	format = WL_SHM_FORMAT_XRGB8888;
 
     xwl_window->buffer =
       wl_shm_create_buffer(xwl_window->xwl_screen->shm, fd,

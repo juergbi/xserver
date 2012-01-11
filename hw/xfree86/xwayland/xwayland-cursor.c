@@ -124,7 +124,7 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
     buffer = wl_shm_create_buffer(xwl_screen->shm, fd,
 				  cursor->bits->width, cursor->bits->height,
 				  cursor->bits->width * 4,
-				  WL_SHM_FORMAT_ARGB32);
+				  WL_SHM_FORMAT_ARGB8888);
     close(fd);
 
     dixSetPrivate(&cursor->devPrivates, &xwl_cursor_private_key, buffer);
