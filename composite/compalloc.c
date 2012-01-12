@@ -417,6 +417,11 @@ compRedirectSubwindows(ClientPtr pClient, WindowPtr pWin, int update)
     return Success;
 }
 
+int CompositeRedirectSubwindows (WindowPtr pWin, int update)
+{
+    return compRedirectSubwindows (serverClient, pWin, update);
+}
+
 /*
  * Free one of the per-client per-subwindows resources,
  * which frees one redirect per subwindow
