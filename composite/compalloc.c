@@ -493,6 +493,11 @@ compUnredirectSubwindows(ClientPtr pClient, WindowPtr pWin, int update)
     return BadValue;
 }
 
+int CompositeUnRedirectSubwindows (WindowPtr pWin, int update)
+{
+    return compUnredirectSubwindows (serverClient, pWin, update);
+}
+
 /*
  * Add redirection information for one subwindow (during reparent)
  */

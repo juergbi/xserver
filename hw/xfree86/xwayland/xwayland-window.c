@@ -125,6 +125,26 @@ xwl_create_window(WindowPtr window)
     return ret;
 }
 
+static int
+xwl_destroy_window (WindowPtr window)
+{
+    ScreenPtr screen = window->drawable.pScreen;
+    struct xwl_screen *xwl_screen;
+    Bool ret;
+
+    if (window->parent == NULL)
+	CompositeUnRedirectSubwindows (window, CompositeRedirectManual);
+
+    xwl_screen = xwl_screen_get(screen);
+
+    screen->DestroyWindow = xwl_screen->DestroyWindow;
+    ret = (*screen->DestroyWindow)(window);
+    xwl_screen->DestroyWindow = screen->DestroyWindow;
+    screen->DestroyWindow = xwl_destroy_window;
+
+    return ret;
+}
+
 static void
 damage_report(DamagePtr pDamage, RegionPtr pRegion, void *data)
 {
@@ -286,6 +306,9 @@ xwl_screen_init_window(struct xwl_screen *xwl_screen, ScreenPtr screen)
 
     xwl_screen->CreateWindow = screen->CreateWindow;
     screen->CreateWindow = xwl_create_window;
+
+    xwl_screen->DestroyWindow = screen->DestroyWindow;
+    screen->DestroyWindow = xwl_destroy_window;
 
     xwl_screen->RealizeWindow = screen->RealizeWindow;
     screen->RealizeWindow = xwl_realize_window;

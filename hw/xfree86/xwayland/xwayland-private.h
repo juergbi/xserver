@@ -66,6 +66,7 @@ struct xwl_screen {
     int32_t			 root_x, root_y;
 
     CreateWindowProcPtr		 CreateWindow;
+    DestroyWindowProcPtr	 DestroyWindow;
     RealizeWindowProcPtr	 RealizeWindow;
     UnrealizeWindowProcPtr	 UnrealizeWindow;
     SetWindowPixmapProcPtr	 SetWindowPixmap;
