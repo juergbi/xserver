@@ -412,7 +412,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
     }
 
     xwl_input_device->xwl_screen = xwl_screen;
-    list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
+    xorg_list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
 
     xwl_input_device->pointer =
 	device_added(xwl_input_device, "xwayland-pointer");

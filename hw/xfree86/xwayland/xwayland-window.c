@@ -151,7 +151,7 @@ damage_report(DamagePtr pDamage, RegionPtr pRegion, void *data)
     struct xwl_window *xwl_window = data;
     struct xwl_screen *xwl_screen = xwl_window->xwl_screen;
 
-    list_add(&xwl_window->link_damage, &xwl_screen->damage_window_list);
+    xorg_list_add(&xwl_window->link_damage, &xwl_screen->damage_window_list);
 }
 
 static void
@@ -207,8 +207,8 @@ xwl_realize_window(WindowPtr window)
 		     FALSE, screen, xwl_window);
     DamageRegister(&window->drawable, xwl_window->damage);
 
-    list_add(&xwl_window->link, &xwl_screen->window_list);
-    list_init(&xwl_window->link_damage);
+    xorg_list_add(&xwl_window->link, &xwl_screen->window_list);
+    xorg_list_init(&xwl_window->link_damage);
 
     return ret;
 }
@@ -224,8 +224,8 @@ xwl_unrealize_window(WindowPtr window)
 
     xwl_screen = xwl_screen_get(screen);
 
-    list_for_each_entry(xwl_input_device,
-			&xwl_screen->input_device_list, link) {
+    xorg_list_for_each_entry(xwl_input_device,
+			     &xwl_screen->input_device_list, link) {
 	if (!xwl_input_device->focus_window)
 	    continue ;
 	if (xwl_input_device->focus_window->window == window) {
@@ -247,8 +247,8 @@ xwl_unrealize_window(WindowPtr window)
     if (xwl_window->buffer)
 	wl_buffer_destroy(xwl_window->buffer);
     wl_surface_destroy(xwl_window->surface);
-    list_del(&xwl_window->link);
-    list_del(&xwl_window->link_damage);
+    xorg_list_del(&xwl_window->link);
+    xorg_list_del(&xwl_window->link_damage);
     DamageUnregister(&window->drawable, xwl_window->damage);
     DamageDestroy(xwl_window->damage);
     free(xwl_window);

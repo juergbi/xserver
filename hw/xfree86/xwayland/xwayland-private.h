@@ -32,8 +32,8 @@ struct xwl_window {
     struct wl_buffer		*buffer;
     WindowPtr			 window;
     DamagePtr			 damage;
-    struct list			 link;
-    struct list			 link_damage;
+    struct xorg_list		 link;
+    struct xorg_list		 link_damage;
 };
 
 struct xwl_output;
@@ -57,9 +57,9 @@ struct xwl_screen {
     uint32_t			 flags;
     char			*device_name;
     uint32_t			 authenticated;
-    struct list			 input_device_list;
-    struct list			 damage_window_list;
-    struct list			 window_list;
+    struct xorg_list		 input_device_list;
+    struct xorg_list		 damage_window_list;
+    struct xorg_list		 window_list;
 
     /* FIXME: Hack. */
     int32_t			 width, height;
@@ -97,7 +97,7 @@ struct xwl_input_device {
     uint32_t			 id;
     uint32_t			 modifiers;
     uint32_t			 time;
-    struct list			 link;
+    struct xorg_list		 link;
 };
 
 struct xwl_screen *xwl_screen_get(ScreenPtr screen);

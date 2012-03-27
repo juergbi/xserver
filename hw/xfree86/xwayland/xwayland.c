@@ -230,9 +230,9 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 	return NULL;
     }
 
-    list_init(&xwl_screen->input_device_list);
-    list_init(&xwl_screen->damage_window_list);
-    list_init(&xwl_screen->window_list);
+    xorg_list_init(&xwl_screen->input_device_list);
+    xorg_list_init(&xwl_screen->damage_window_list);
+    xorg_list_init(&xwl_screen->window_list);
     xwl_screen->scrninfo = scrninfo;
     xwl_screen->driver = driver;
     xwl_screen->flags = flags;
@@ -307,22 +307,22 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
 					  xwl_screen->input_listener);
 
 
-    list_for_each_entry_safe(xwl_input_device, itmp,
-			     &xwl_screen->input_device_list, link) {
+    xorg_list_for_each_entry_safe(xwl_input_device, itmp,
+				  &xwl_screen->input_device_list, link) {
 	wl_input_device_destroy(xwl_input_device->input_device);
 	free(xwl_input_device);
     }
-    list_for_each_entry_safe(xwl_window, wtmp,
-			     &xwl_screen->window_list, link) {
+    xorg_list_for_each_entry_safe(xwl_window, wtmp,
+				  &xwl_screen->window_list, link) {
 	wl_buffer_destroy(xwl_window->buffer);
 	wl_surface_destroy(xwl_window->surface);
 	free(xwl_window);
     }
 
     xwl_screen->input_listener = NULL;
-    list_init(&xwl_screen->input_device_list);
-    list_init(&xwl_screen->damage_window_list);
-    list_init(&xwl_screen->window_list);
+    xorg_list_init(&xwl_screen->input_device_list);
+    xorg_list_init(&xwl_screen->damage_window_list);
+    xorg_list_init(&xwl_screen->window_list);
     xwl_screen->root_x = 0;
     xwl_screen->root_y = 0;
 
@@ -348,8 +348,8 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
     BoxPtr box;
     int count, i;
 
-    list_for_each_entry(xwl_window, &xwl_screen->damage_window_list,
-			link_damage) {
+    xorg_list_for_each_entry(xwl_window, &xwl_screen->damage_window_list,
+			     link_damage) {
 
 	region = DamageRegion(xwl_window->damage);
 	count = RegionNumRects(region);
@@ -363,7 +363,7 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 	DamageEmpty(xwl_window->damage);
     }
 
-    list_init(&xwl_screen->damage_window_list);
+    xorg_list_init(&xwl_screen->damage_window_list);
 }
 
 static pointer

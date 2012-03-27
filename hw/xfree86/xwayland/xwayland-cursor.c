@@ -159,11 +159,11 @@ xwl_set_cursor(DeviceIntPtr device,
 
     xwl_screen = xwl_screen_get(screen);
 
-    if (!xwl_screen || list_is_empty(&xwl_screen->input_device_list))
+    if (!xwl_screen || xorg_list_is_empty(&xwl_screen->input_device_list))
 	return ;
 
-    xwl_input_device = list_first_entry(&xwl_screen->input_device_list,
-					struct xwl_input_device, link);
+    xwl_input_device = xorg_list_first_entry(&xwl_screen->input_device_list,
+					     struct xwl_input_device, link);
 
     buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
