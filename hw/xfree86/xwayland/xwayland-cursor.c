@@ -129,8 +129,6 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 
     dixSetPrivate(&cursor->devPrivates, &xwl_cursor_private_key, buffer);
 
-    wl_buffer_damage(buffer, 0, 0, cursor->bits->width, cursor->bits->height);
-
     return TRUE;
 }
 
