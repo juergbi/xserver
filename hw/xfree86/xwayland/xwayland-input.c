@@ -343,7 +343,7 @@ input_device_handle_key(void *data, struct wl_input_device *input_device,
 }
 
 static void
-input_device_handle_pointer_focus(void *data,
+input_device_handle_pointer_enter(void *data,
 				  struct wl_input_device *input_device,
 				  uint32_t time,
 				  struct wl_surface *surface,
@@ -368,7 +368,7 @@ input_device_handle_pointer_focus(void *data,
 }
 
 static void
-input_device_handle_keyboard_focus(void *data,
+input_device_handle_keyboard_enter(void *data,
 				   struct wl_input_device *input_device,
 				   uint32_t time,
 				   struct wl_surface *surface,
@@ -391,12 +391,76 @@ input_device_handle_keyboard_focus(void *data,
     }
 }
 
+static void
+input_device_handle_axis(void *data, struct wl_input_device *input_device,
+                         uint32_t time, uint32_t axis, int32_t value)
+{
+}
+
+static void
+input_device_handle_pointer_leave(void *data,
+                                  struct wl_input_device *input_device,
+                                  uint32_t time, struct wl_surface *surface)
+{
+}
+
+static void
+input_device_handle_keyboard_leave(void *data,
+                                   struct wl_input_device *input_device,
+                                   uint32_t time,
+                                   struct wl_surface *surface)
+{
+}
+
+static void
+input_device_handle_touch_down(void *data,
+                               struct wl_input_device *wl_input_device,
+                               uint32_t time, struct wl_surface *surface,
+                               int32_t id, int32_t x, int32_t y)
+{
+}
+
+static void
+input_device_handle_touch_up(void *data,
+                             struct wl_input_device *wl_input_device,
+                             uint32_t time, int32_t id)
+{
+}
+
+static void
+input_device_handle_touch_motion(void *data,
+                                 struct wl_input_device *wl_input_device,
+                                 uint32_t time,
+                                 int32_t id, int32_t x, int32_t y)
+{
+}
+
+static void
+input_device_handle_touch_frame(void *data,
+				struct wl_input_device *wl_input_device)
+{
+}
+
+static void
+input_device_handle_touch_cancel(void *data,
+				 struct wl_input_device *wl_input_device)
+{
+}
+
 static const struct wl_input_device_listener input_device_listener = {
     input_device_handle_motion,
     input_device_handle_button,
+    input_device_handle_axis,
     input_device_handle_key,
-    input_device_handle_pointer_focus,
-    input_device_handle_keyboard_focus,
+    input_device_handle_pointer_enter,
+    input_device_handle_pointer_leave,
+    input_device_handle_keyboard_enter,
+    input_device_handle_keyboard_leave,
+    input_device_handle_touch_down,
+    input_device_handle_touch_up,
+    input_device_handle_touch_motion,
+    input_device_handle_touch_frame,
+    input_device_handle_touch_cancel,
 };
 
 static void
