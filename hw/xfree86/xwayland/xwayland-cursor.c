@@ -89,6 +89,7 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
     int size;
     char filename[] = "/tmp/wayland-shm-XXXXXX";
     int fd;
+    struct wl_shm_pool *pool;
     struct wl_buffer *buffer;
     void *data;
 
@@ -121,11 +122,13 @@ xwl_realize_cursor(DeviceIntPtr device, ScreenPtr screen, CursorPtr cursor)
 	expand_source_and_mask(cursor, data);
     munmap(data, size);
 
-    buffer = wl_shm_create_buffer(xwl_screen->shm, fd,
+    pool = wl_shm_create_pool(xwl_screen->shm, fd, size);
+    close(fd);
+    buffer = wl_shm_pool_create_buffer(pool, 0,
 				  cursor->bits->width, cursor->bits->height,
 				  cursor->bits->width * 4,
 				  WL_SHM_FORMAT_ARGB8888);
-    close(fd);
+    wl_shm_pool_destroy(pool);
 
     dixSetPrivate(&cursor->devPrivates, &xwl_cursor_private_key, buffer);
 

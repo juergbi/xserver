@@ -277,7 +277,8 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
     uint32_t format;
     WindowPtr window = xwl_window->window;
     ScreenPtr screen = window->drawable.pScreen;
-    int i;
+    struct wl_shm_pool *pool;
+    int i, size;
 
     visual = wVisual(window);
     for (i = 0; i < screen->numVisuals; i++)
@@ -289,10 +290,12 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
     else
 	format = WL_SHM_FORMAT_XRGB8888;
 
-    xwl_window->buffer =
-      wl_shm_create_buffer(xwl_window->xwl_screen->shm, fd,
+    size = pixmap->drawable.width * pixmap->drawable.width * 4;
+    pool = wl_shm_create_pool(xwl_window->xwl_screen->shm, fd, size);
+    xwl_window->buffer =  wl_shm_pool_create_buffer(pool, 0,
 			   pixmap->drawable.width, pixmap->drawable.height,
 			   pixmap->drawable.width * 4, format);
+    wl_shm_pool_destroy(pool);
 
     return xwl_window->buffer ? Success : BadDrawable;
 }
