@@ -268,14 +268,11 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 
 static void
 input_device_handle_motion(void *data, struct wl_input_device *input_device,
-			   uint32_t time,
-			   int32_t x, int32_t y, int32_t sx, int32_t sy)
+			   uint32_t time, int32_t sx, int32_t sy)
 {
     struct xwl_input_device *xwl_input_device = data;
     struct xwl_screen *xwl_screen = xwl_input_device->xwl_screen;
     int32_t dx, dy, lx, ly;
-
-    xwl_input_device->time = time;
 
     if (!xwl_input_device->focus_window)
 	return ;
@@ -292,12 +289,13 @@ input_device_handle_motion(void *data, struct wl_input_device *input_device,
 
 static void
 input_device_handle_button(void *data, struct wl_input_device *input_device,
-			   uint32_t time, uint32_t button, uint32_t state)
+			   uint32_t serial, uint32_t time, uint32_t button,
+			   uint32_t state)
 {
     struct xwl_input_device *xwl_input_device = data;
     int index;
 
-    xwl_input_device->time = time;
+    xwl_input_device->xwl_screen->serial = serial;
 
     switch (button) {
     case BTN_MIDDLE:
@@ -317,12 +315,13 @@ input_device_handle_button(void *data, struct wl_input_device *input_device,
 
 static void
 input_device_handle_key(void *data, struct wl_input_device *input_device,
-			uint32_t time, uint32_t key, uint32_t state)
+			uint32_t serial, uint32_t time, uint32_t key,
+			uint32_t state)
 {
     struct xwl_input_device *xwl_input_device = data;
     uint32_t modifier;
 
-    xwl_input_device->time = time;
+    xwl_input_device->xwl_screen->serial = serial;
 
     switch (key) {
     case KEY_LEFTMETA:
@@ -345,14 +344,14 @@ input_device_handle_key(void *data, struct wl_input_device *input_device,
 static void
 input_device_handle_pointer_enter(void *data,
 				  struct wl_input_device *input_device,
-				  uint32_t time,
-				  struct wl_surface *surface,
-				  int32_t x, int32_t y, int32_t sx, int32_t sy)
+				  uint32_t serial, struct wl_surface *surface,
+				  int32_t sx, int32_t sy)
 
 {
     struct xwl_input_device *xwl_input_device = data;
 
-    xwl_input_device->time = time;
+    xwl_input_device->xwl_screen->serial = serial;
+    xwl_input_device->pointer_enter_serial = serial;
 
     if (surface)
 	xwl_input_device->focus_window = wl_surface_get_user_data(surface);
@@ -370,14 +369,14 @@ input_device_handle_pointer_enter(void *data,
 static void
 input_device_handle_keyboard_enter(void *data,
 				   struct wl_input_device *input_device,
-				   uint32_t time,
+				   uint32_t serial,
 				   struct wl_surface *surface,
 				   struct wl_array *keys)
 {
     struct xwl_input_device *xwl_input_device = data;
     uint32_t *k, *end;
 
-    xwl_input_device->time = time;
+    xwl_input_device->xwl_screen->serial = serial;
 
     xwl_input_device->modifiers = 0;
     end = (uint32_t *) ((char *) keys->data + keys->size);
@@ -400,22 +399,29 @@ input_device_handle_axis(void *data, struct wl_input_device *input_device,
 static void
 input_device_handle_pointer_leave(void *data,
                                   struct wl_input_device *input_device,
-                                  uint32_t time, struct wl_surface *surface)
+                                  uint32_t serial, struct wl_surface *surface)
 {
+    struct xwl_input_device *xwl_input_device = data;
+
+    xwl_input_device->xwl_screen->serial = serial;
 }
 
 static void
 input_device_handle_keyboard_leave(void *data,
                                    struct wl_input_device *input_device,
-                                   uint32_t time,
+                                   uint32_t serial,
                                    struct wl_surface *surface)
 {
+    struct xwl_input_device *xwl_input_device = data;
+
+    xwl_input_device->xwl_screen->serial = serial;
 }
 
 static void
 input_device_handle_touch_down(void *data,
                                struct wl_input_device *wl_input_device,
-                               uint32_t time, struct wl_surface *surface,
+                               uint32_t serial, uint32_t time,
+			       struct wl_surface *surface,
                                int32_t id, int32_t x, int32_t y)
 {
 }
@@ -423,7 +429,7 @@ input_device_handle_touch_down(void *data,
 static void
 input_device_handle_touch_up(void *data,
                              struct wl_input_device *wl_input_device,
-                             uint32_t time, int32_t id)
+                             uint32_t serial, uint32_t time, int32_t id)
 {
 }
 

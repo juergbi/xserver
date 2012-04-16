@@ -60,6 +60,7 @@ struct xwl_screen {
     struct xorg_list		 input_device_list;
     struct xorg_list		 damage_window_list;
     struct xorg_list		 window_list;
+    uint32_t			 serial;
 
     /* FIXME: Hack. */
     int32_t			 width, height;
@@ -96,7 +97,7 @@ struct xwl_input_device {
     int32_t			 grab_x, grab_y;
     uint32_t			 id;
     uint32_t			 modifiers;
-    uint32_t			 time;
+    uint32_t			 pointer_enter_serial;
     struct xorg_list		 link;
 };
 

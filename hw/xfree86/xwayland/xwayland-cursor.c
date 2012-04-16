@@ -169,7 +169,7 @@ xwl_set_cursor(DeviceIntPtr device,
     buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
     wl_input_device_attach(xwl_input_device->input_device,
-			   xwl_input_device->time, buffer,
+			   xwl_input_device->pointer_enter_serial, buffer,
 			   cursor->bits->xhot, cursor->bits->yhot);
 }
 
