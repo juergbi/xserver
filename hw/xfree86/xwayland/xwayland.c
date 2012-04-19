@@ -290,7 +290,7 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
     else
 	format = WL_SHM_FORMAT_XRGB8888;
 
-    size = pixmap->drawable.width * pixmap->drawable.width * 4;
+    size = pixmap->drawable.width * pixmap->drawable.height * 4;
     pool = wl_shm_create_pool(xwl_window->xwl_screen->shm, fd, size);
     xwl_window->buffer =  wl_shm_pool_create_buffer(pool, 0,
 			   pixmap->drawable.width, pixmap->drawable.height,
