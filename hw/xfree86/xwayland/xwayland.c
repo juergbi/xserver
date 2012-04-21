@@ -222,6 +222,8 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 	return NULL;
     }
 
+    noScreenSaverExtension = TRUE;
+
     xdnd_atom = MakeAtom("XdndSelection", 13, 1);
     ErrorF("xdnd_atom: %d\n", xdnd_atom);
     if (!AddCallback(&SelectionCallback,
