@@ -248,7 +248,8 @@ xwl_unrealize_window(WindowPtr window)
 	wl_buffer_destroy(xwl_window->buffer);
     wl_surface_destroy(xwl_window->surface);
     xorg_list_del(&xwl_window->link);
-    xorg_list_del(&xwl_window->link_damage);
+    if (RegionNotEmpty(DamageRegion(xwl_window->damage)))
+	xorg_list_del(&xwl_window->link_damage);
     DamageUnregister(&window->drawable, xwl_window->damage);
     DamageDestroy(xwl_window->damage);
     free(xwl_window);
