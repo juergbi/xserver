@@ -206,6 +206,7 @@ xwl_realize_window(WindowPtr window)
 	DamageCreate(damage_report, damage_destroy, DamageReportNonEmpty,
 		     FALSE, screen, xwl_window);
     DamageRegister(&window->drawable, xwl_window->damage);
+    DamageSetReportAfterOp(xwl_window->damage, TRUE);
 
     xorg_list_add(&xwl_window->link, &xwl_screen->window_list);
     xorg_list_init(&xwl_window->link_damage);
