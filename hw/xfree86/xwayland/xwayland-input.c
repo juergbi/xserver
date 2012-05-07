@@ -353,17 +353,10 @@ input_device_handle_pointer_enter(void *data,
     xwl_input_device->xwl_screen->serial = serial;
     xwl_input_device->pointer_enter_serial = serial;
 
-    if (surface)
-	xwl_input_device->focus_window = wl_surface_get_user_data(surface);
-    else
-	xwl_input_device->focus_window = NULL;
+    xwl_input_device->focus_window = wl_surface_get_user_data(surface);
 
-    if (xwl_input_device->focus_window)
-	SetDeviceRedirectWindow(xwl_input_device->pointer,
-				xwl_input_device->focus_window->window);
-    else
-	SetDeviceRedirectWindow(xwl_input_device->pointer,
-				PointerRootWin);
+    SetDeviceRedirectWindow(xwl_input_device->pointer,
+                            xwl_input_device->focus_window->window);
 }
 
 static void
@@ -414,6 +407,9 @@ input_device_handle_pointer_leave(void *data,
     struct xwl_input_device *xwl_input_device = data;
 
     xwl_input_device->xwl_screen->serial = serial;
+
+    xwl_input_device->focus_window = NULL;
+    SetDeviceRedirectWindow(xwl_input_device->pointer, PointerRootWin);
 }
 
 static void
