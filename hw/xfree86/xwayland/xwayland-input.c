@@ -394,6 +394,16 @@ static void
 input_device_handle_axis(void *data, struct wl_input_device *input_device,
                          uint32_t time, uint32_t axis, int32_t value)
 {
+    struct xwl_input_device *xwl_input_device = data;
+    int index;
+
+    if (value == 1)
+        index = 4;
+    else if (value == -1)
+        index = 5;
+
+    xf86PostButtonEvent(xwl_input_device->pointer, TRUE, index, 1, 0, 0);
+    xf86PostButtonEvent(xwl_input_device->pointer, TRUE, index, 0, 0, 0);
 }
 
 static void
