@@ -268,11 +268,13 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 
 static void
 input_device_handle_motion(void *data, struct wl_input_device *input_device,
-			   uint32_t time, int32_t sx, int32_t sy)
+			   uint32_t time, wl_fixed_t sx_w, wl_fixed_t sy_w)
 {
     struct xwl_input_device *xwl_input_device = data;
     struct xwl_screen *xwl_screen = xwl_input_device->xwl_screen;
     int32_t dx, dy, lx, ly;
+    int sx = wl_fixed_to_int(sx_w);
+    int sy = wl_fixed_to_int(sy_w);
 
     if (!xwl_input_device->focus_window)
 	return ;
@@ -345,7 +347,7 @@ static void
 input_device_handle_pointer_enter(void *data,
 				  struct wl_input_device *input_device,
 				  uint32_t serial, struct wl_surface *surface,
-				  int32_t sx, int32_t sy)
+				  wl_fixed_t sx_w, wl_fixed_t sy_w)
 
 {
     struct xwl_input_device *xwl_input_device = data;
@@ -428,7 +430,7 @@ input_device_handle_touch_down(void *data,
                                struct wl_input_device *wl_input_device,
                                uint32_t serial, uint32_t time,
 			       struct wl_surface *surface,
-                               int32_t id, int32_t x, int32_t y)
+                               int32_t id, wl_fixed_t x, wl_fixed_t y)
 {
 }
 
@@ -442,8 +444,8 @@ input_device_handle_touch_up(void *data,
 static void
 input_device_handle_touch_motion(void *data,
                                  struct wl_input_device *wl_input_device,
-                                 uint32_t time,
-                                 int32_t id, int32_t x, int32_t y)
+                                 uint32_t time, int32_t id,
+                                 wl_fixed_t x, wl_fixed_t y)
 {
 }
 
