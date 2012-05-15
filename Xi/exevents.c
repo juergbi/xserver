@@ -2026,7 +2026,7 @@ SetDeviceRedirectWindow(DeviceIntPtr dev, WindowPtr window)
     SpritePtr pSprite = dev->spriteInfo->sprite;
     DeviceIntPtr mouse;
 
-    mouse = IsMaster(dev) ? GetMaster(dev, MASTER_POINTER) : dev;
+    mouse = IsMaster(dev) ? dev : GetMaster(dev, MASTER_POINTER);
 
     pSprite->redirectWindow = window;
 
