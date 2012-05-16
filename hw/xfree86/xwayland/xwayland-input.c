@@ -234,7 +234,7 @@ xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin)
 }
 
 static DeviceIntPtr
-device_added(struct xwl_input_device *xwl_input_device, const char *driver)
+device_added(struct xwl_seat *xwl_seat, const char *driver)
 {
     DeviceIntPtr dev = NULL;
     InputInfoPtr pInfo;
@@ -246,13 +246,12 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 
     pInfo->driver = xstrdup(driver);
 
-    if (asprintf(&pInfo->name, "%s:%d",
-		 pInfo->driver, xwl_input_device->id) == -1) {
+    if (asprintf(&pInfo->name, "%s:%d", pInfo->driver, xwl_seat->id) == -1) {
 	free(pInfo);
 	return NULL;
     }
 
-    pInfo->private = xwl_input_device;
+    pInfo->private = xwl_seat;
 
     rc = xf86NewInputDevice(pInfo, &dev, 1);
     if (rc != Success) {
@@ -267,37 +266,63 @@ device_added(struct xwl_input_device *xwl_input_device, const char *driver)
 }
 
 static void
-input_device_handle_motion(void *data, struct wl_input_device *input_device,
-			   uint32_t time, wl_fixed_t sx_w, wl_fixed_t sy_w)
+pointer_handle_enter(void *data, struct wl_pointer *pointer,
+		     uint32_t serial, struct wl_surface *surface,
+		     wl_fixed_t sx_w, wl_fixed_t sy_w)
+
 {
-    struct xwl_input_device *xwl_input_device = data;
-    struct xwl_screen *xwl_screen = xwl_input_device->xwl_screen;
+    struct xwl_seat *xwl_seat = data;
+
+    xwl_seat->xwl_screen->serial = serial;
+    xwl_seat->pointer_enter_serial = serial;
+
+    xwl_seat->focus_window = wl_surface_get_user_data(surface);
+
+    SetDeviceRedirectWindow(xwl_seat->pointer, xwl_seat->focus_window->window);
+}
+
+static void
+pointer_handle_leave(void *data, struct wl_pointer *pointer,
+		     uint32_t serial, struct wl_surface *surface)
+{
+    struct xwl_seat *xwl_seat = data;
+
+    xwl_seat->xwl_screen->serial = serial;
+
+    xwl_seat->focus_window = NULL;
+    SetDeviceRedirectWindow(xwl_seat->pointer, PointerRootWin);
+}
+
+static void
+pointer_handle_motion(void *data, struct wl_pointer *pointer,
+		      uint32_t time, wl_fixed_t sx_w, wl_fixed_t sy_w)
+{
+    struct xwl_seat *xwl_seat = data;
+    struct xwl_screen *xwl_screen = xwl_seat->xwl_screen;
     int32_t dx, dy, lx, ly;
     int sx = wl_fixed_to_int(sx_w);
     int sy = wl_fixed_to_int(sy_w);
 
-    if (!xwl_input_device->focus_window)
+    if (!xwl_seat->focus_window)
 	return ;
 
-    dx = xwl_input_device->focus_window->window->drawable.x;
-    dy = xwl_input_device->focus_window->window->drawable.y;
+    dx = xwl_seat->focus_window->window->drawable.x;
+    dy = xwl_seat->focus_window->window->drawable.y;
 
     lx = xf86ScaleAxis(sx + dx, 0xFFFF, 0, xwl_screen->scrninfo->virtualX, 0);
     ly = xf86ScaleAxis(sy + dy, 0xFFFF, 0, xwl_screen->scrninfo->virtualY, 0);
 
-    xf86PostMotionEvent(xwl_input_device->pointer,
-			TRUE, 0, 2, lx, ly);
+    xf86PostMotionEvent(xwl_seat->pointer, TRUE, 0, 2, lx, ly);
 }
 
 static void
-input_device_handle_button(void *data, struct wl_input_device *input_device,
-			   uint32_t serial, uint32_t time, uint32_t button,
-			   uint32_t state)
+pointer_handle_button(void *data, struct wl_pointer *pointer, uint32_t serial,
+		      uint32_t time, uint32_t button, uint32_t state)
 {
-    struct xwl_input_device *xwl_input_device = data;
+    struct xwl_seat *xwl_seat = data;
     int index;
 
-    xwl_input_device->xwl_screen->serial = serial;
+    xwl_seat->xwl_screen->serial = serial;
 
     switch (button) {
     case BTN_MIDDLE:
@@ -311,19 +336,41 @@ input_device_handle_button(void *data, struct wl_input_device *input_device,
 	break;
     }
 
-    xf86PostButtonEvent(xwl_input_device->pointer,
-			TRUE, index, state, 0, 0);
+    xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, state, 0, 0);
 }
 
 static void
-input_device_handle_key(void *data, struct wl_input_device *input_device,
-			uint32_t serial, uint32_t time, uint32_t key,
-			uint32_t state)
+pointer_handle_axis(void *data, struct wl_pointer *pointer,
+		    uint32_t time, uint32_t axis, int32_t value)
 {
-    struct xwl_input_device *xwl_input_device = data;
+    struct xwl_seat *xwl_seat = data;
+    int index;
+
+    if (value == 1)
+        index = 4;
+    else if (value == -1)
+        index = 5;
+
+    xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 1, 0, 0);
+    xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 0, 0, 0);
+}
+
+static const struct wl_pointer_listener pointer_listener = {
+	pointer_handle_enter,
+	pointer_handle_leave,
+	pointer_handle_motion,
+	pointer_handle_button,
+	pointer_handle_axis,
+};
+
+static void
+keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
+		    uint32_t time, uint32_t key, uint32_t state)
+{
+    struct xwl_seat *xwl_seat = data;
     uint32_t modifier;
 
-    xwl_input_device->xwl_screen->serial = serial;
+    xwl_seat->xwl_screen->serial = serial;
 
     switch (key) {
     case KEY_LEFTMETA:
@@ -336,174 +383,95 @@ input_device_handle_key(void *data, struct wl_input_device *input_device,
     }
 
     if (state)
-	xwl_input_device->modifiers |= modifier;
+	xwl_seat->modifiers |= modifier;
     else
-	xwl_input_device->modifiers &= ~modifier;
+	xwl_seat->modifiers &= ~modifier;
 
-    xf86PostKeyboardEvent(xwl_input_device->keyboard, key + 8, state);
+    xf86PostKeyboardEvent(xwl_seat->keyboard, key + 8, state);
 }
 
 static void
-input_device_handle_pointer_enter(void *data,
-				  struct wl_input_device *input_device,
-				  uint32_t serial, struct wl_surface *surface,
-				  wl_fixed_t sx_w, wl_fixed_t sy_w)
-
+keyboard_handle_enter(void *data, struct wl_keyboard *keyboard,
+		      uint32_t serial,
+		      struct wl_surface *surface, struct wl_array *keys)
 {
-    struct xwl_input_device *xwl_input_device = data;
-
-    xwl_input_device->xwl_screen->serial = serial;
-    xwl_input_device->pointer_enter_serial = serial;
-
-    xwl_input_device->focus_window = wl_surface_get_user_data(surface);
-
-    SetDeviceRedirectWindow(xwl_input_device->pointer,
-                            xwl_input_device->focus_window->window);
-}
-
-static void
-input_device_handle_keyboard_enter(void *data,
-				   struct wl_input_device *input_device,
-				   uint32_t serial,
-				   struct wl_surface *surface,
-				   struct wl_array *keys)
-{
-    struct xwl_input_device *xwl_input_device = data;
+    struct xwl_seat *xwl_seat = data;
     uint32_t *k, *end;
 
-    xwl_input_device->xwl_screen->serial = serial;
+    xwl_seat->xwl_screen->serial = serial;
 
-    xwl_input_device->modifiers = 0;
+    xwl_seat->modifiers = 0;
     end = (uint32_t *) ((char *) keys->data + keys->size);
     for (k = keys->data; k < end; k++) {
 	switch (*k) {
 	case KEY_LEFTMETA:
 	case KEY_RIGHTMETA:
-	    xwl_input_device->modifiers |= MODIFIER_META;
+	    xwl_seat->modifiers |= MODIFIER_META;
 	    break;
 	}
     }
 }
 
 static void
-input_device_handle_axis(void *data, struct wl_input_device *input_device,
-                         uint32_t time, uint32_t axis, int32_t value)
+keyboard_handle_leave(void *data, struct wl_keyboard *keyboard,
+		      uint32_t serial, struct wl_surface *surface)
 {
-    struct xwl_input_device *xwl_input_device = data;
-    int index;
+    struct xwl_seat *xwl_seat = data;
 
-    if (value == 1)
-        index = 4;
-    else if (value == -1)
-        index = 5;
-
-    xf86PostButtonEvent(xwl_input_device->pointer, TRUE, index, 1, 0, 0);
-    xf86PostButtonEvent(xwl_input_device->pointer, TRUE, index, 0, 0, 0);
+    xwl_seat->xwl_screen->serial = serial;
 }
+
+static const struct wl_keyboard_listener keyboard_listener = {
+	keyboard_handle_enter,
+	keyboard_handle_leave,
+	keyboard_handle_key,
+};
 
 static void
-input_device_handle_pointer_leave(void *data,
-                                  struct wl_input_device *input_device,
-                                  uint32_t serial, struct wl_surface *surface)
+seat_handle_capabilities(void *data, struct wl_seat *seat,
+			 enum wl_seat_capability caps)
 {
-    struct xwl_input_device *xwl_input_device = data;
+	struct xwl_seat *xwl_seat = data;
 
-    xwl_input_device->xwl_screen->serial = serial;
+	if (caps & WL_SEAT_CAPABILITY_POINTER) {
+	    xwl_seat->pointer = device_added(xwl_seat, "xwayland-pointer");
+	    xwl_seat->wl_pointer = wl_seat_get_pointer(seat);
+	    wl_pointer_add_listener(xwl_seat->wl_pointer,
+				    &pointer_listener, xwl_seat);
+	}
 
-    xwl_input_device->focus_window = NULL;
-    SetDeviceRedirectWindow(xwl_input_device->pointer, PointerRootWin);
+	if (caps & WL_SEAT_CAPABILITY_KEYBOARD) {
+	    xwl_seat->keyboard = device_added(xwl_seat, "xwayland-keyboard");
+	    xwl_seat->wl_keyboard = wl_seat_get_keyboard(seat);
+	    wl_keyboard_add_listener(xwl_seat->wl_keyboard,
+				     &keyboard_listener, xwl_seat);
+	}
 }
 
-static void
-input_device_handle_keyboard_leave(void *data,
-                                   struct wl_input_device *input_device,
-                                   uint32_t serial,
-                                   struct wl_surface *surface)
-{
-    struct xwl_input_device *xwl_input_device = data;
-
-    xwl_input_device->xwl_screen->serial = serial;
-}
-
-static void
-input_device_handle_touch_down(void *data,
-                               struct wl_input_device *wl_input_device,
-                               uint32_t serial, uint32_t time,
-			       struct wl_surface *surface,
-                               int32_t id, wl_fixed_t x, wl_fixed_t y)
-{
-}
-
-static void
-input_device_handle_touch_up(void *data,
-                             struct wl_input_device *wl_input_device,
-                             uint32_t serial, uint32_t time, int32_t id)
-{
-}
-
-static void
-input_device_handle_touch_motion(void *data,
-                                 struct wl_input_device *wl_input_device,
-                                 uint32_t time, int32_t id,
-                                 wl_fixed_t x, wl_fixed_t y)
-{
-}
-
-static void
-input_device_handle_touch_frame(void *data,
-				struct wl_input_device *wl_input_device)
-{
-}
-
-static void
-input_device_handle_touch_cancel(void *data,
-				 struct wl_input_device *wl_input_device)
-{
-}
-
-static const struct wl_input_device_listener input_device_listener = {
-    input_device_handle_motion,
-    input_device_handle_button,
-    input_device_handle_axis,
-    input_device_handle_key,
-    input_device_handle_pointer_enter,
-    input_device_handle_pointer_leave,
-    input_device_handle_keyboard_enter,
-    input_device_handle_keyboard_leave,
-    input_device_handle_touch_down,
-    input_device_handle_touch_up,
-    input_device_handle_touch_motion,
-    input_device_handle_touch_frame,
-    input_device_handle_touch_cancel,
+static const struct wl_seat_listener seat_listener = {
+	seat_handle_capabilities,
 };
 
 static void
 create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
 		    uint32_t version)
 {
-    struct xwl_input_device *xwl_input_device;
+    struct xwl_seat *xwl_seat;
 
-    xwl_input_device = calloc(sizeof *xwl_input_device, 1);
-    if (xwl_input_device == NULL) {
+    xwl_seat = calloc(sizeof *xwl_seat, 1);
+    if (xwl_seat == NULL) {
 	ErrorF("create_input ENOMEM");
 	return ;
     }
 
-    xwl_input_device->xwl_screen = xwl_screen;
-    xorg_list_add(&xwl_input_device->link, &xwl_screen->input_device_list);
+    xwl_seat->xwl_screen = xwl_screen;
+    xorg_list_add(&xwl_seat->link, &xwl_screen->seat_list);
 
-    xwl_input_device->pointer =
-	device_added(xwl_input_device, "xwayland-pointer");
-    xwl_input_device->keyboard =
-	device_added(xwl_input_device, "xwayland-keyboard");
+    xwl_seat->seat =
+	wl_display_bind(xwl_screen->display, id, &wl_seat_interface);
+    xwl_seat->id = id;
 
-    xwl_input_device->input_device =
-        wl_display_bind(xwl_screen->display, id, &wl_input_device_interface);
-    xwl_input_device->id = id;
-
-    wl_input_device_add_listener(xwl_input_device->input_device,
-				 &input_device_listener,
-				 xwl_input_device);
+    wl_seat_add_listener(xwl_seat->seat, &seat_listener, xwl_seat);
 }
 
 static void
@@ -515,7 +483,7 @@ input_handler(struct wl_display *display,
 {
     struct xwl_screen *xwl_screen = data;
 
-    if (strcmp (interface, "wl_input_device") == 0) {
+    if (strcmp (interface, "wl_seat") == 0) {
         create_input_device(xwl_screen, id, 1);
     }
 }

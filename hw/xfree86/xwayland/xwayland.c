@@ -232,7 +232,7 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 	return NULL;
     }
 
-    xorg_list_init(&xwl_screen->input_device_list);
+    xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
     xwl_screen->scrninfo = scrninfo;
@@ -304,7 +304,7 @@ xwl_create_window_buffer_shm(struct xwl_window *xwl_window,
 
 void xwl_screen_close(struct xwl_screen *xwl_screen)
 {
-    struct xwl_input_device *xwl_input_device, *itmp;
+    struct xwl_seat *xwl_seat, *itmp;
     struct xwl_window *xwl_window, *wtmp;
 
     if (xwl_screen->input_listener)
@@ -312,10 +312,10 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
 					  xwl_screen->input_listener);
 
 
-    xorg_list_for_each_entry_safe(xwl_input_device, itmp,
-				  &xwl_screen->input_device_list, link) {
-	wl_input_device_destroy(xwl_input_device->input_device);
-	free(xwl_input_device);
+    xorg_list_for_each_entry_safe(xwl_seat, itmp,
+				  &xwl_screen->seat_list, link) {
+	wl_seat_destroy(xwl_seat->seat);
+	free(xwl_seat);
     }
     xorg_list_for_each_entry_safe(xwl_window, wtmp,
 				  &xwl_screen->window_list, link) {
@@ -325,7 +325,7 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
     }
 
     xwl_screen->input_listener = NULL;
-    xorg_list_init(&xwl_screen->input_device_list);
+    xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
     xwl_screen->root_x = 0;

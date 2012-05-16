@@ -57,7 +57,7 @@ struct xwl_screen {
     uint32_t			 flags;
     char			*device_name;
     uint32_t			 authenticated;
-    struct xorg_list		 input_device_list;
+    struct xorg_list		 seat_list;
     struct xorg_list		 damage_window_list;
     struct xorg_list		 window_list;
     uint32_t			 serial;
@@ -87,11 +87,13 @@ struct xwl_output {
 
 #define MODIFIER_META 0x01
 
-struct xwl_input_device {
+struct xwl_seat {
     DeviceIntPtr		 pointer;
     DeviceIntPtr		 keyboard;
     struct xwl_screen		*xwl_screen;
-    struct wl_input_device	*input_device;
+    struct wl_seat		*seat;
+    struct wl_pointer		*wl_pointer;
+    struct wl_keyboard		*wl_keyboard;
     int				 grab;
     struct xwl_window		*focus_window;
     int32_t			 grab_x, grab_y;

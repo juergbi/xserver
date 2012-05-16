@@ -152,7 +152,7 @@ xwl_set_cursor(DeviceIntPtr device,
 	       ScreenPtr screen, CursorPtr cursor, int x, int y)
 {
     struct xwl_screen *xwl_screen;
-    struct xwl_input_device *xwl_input_device;
+    struct xwl_seat *xwl_seat;
     struct wl_buffer *buffer;
 
     if (!cursor)
@@ -160,17 +160,17 @@ xwl_set_cursor(DeviceIntPtr device,
 
     xwl_screen = xwl_screen_get(screen);
 
-    if (!xwl_screen || xorg_list_is_empty(&xwl_screen->input_device_list))
-	return ;
+    if (!xwl_screen || xorg_list_is_empty(&xwl_screen->seat_list))
+	return;
 
-    xwl_input_device = xorg_list_first_entry(&xwl_screen->input_device_list,
-					     struct xwl_input_device, link);
+    xwl_seat = xorg_list_first_entry(&xwl_screen->seat_list,
+					     struct xwl_seat, link);
 
     buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
-    wl_input_device_attach(xwl_input_device->input_device,
-			   xwl_input_device->pointer_enter_serial, buffer,
-			   cursor->bits->xhot, cursor->bits->yhot);
+    wl_pointer_attach(xwl_seat->wl_pointer,
+		      xwl_seat->pointer_enter_serial, buffer,
+		      cursor->bits->xhot, cursor->bits->yhot);
 }
 
 static void

@@ -220,18 +220,18 @@ xwl_unrealize_window(WindowPtr window)
     ScreenPtr screen = window->drawable.pScreen;
     struct xwl_screen *xwl_screen;
     struct xwl_window *xwl_window;
-    struct xwl_input_device *xwl_input_device;
+    struct xwl_seat *xwl_seat;
     Bool ret;
 
     xwl_screen = xwl_screen_get(screen);
 
-    xorg_list_for_each_entry(xwl_input_device,
-			     &xwl_screen->input_device_list, link) {
-	if (!xwl_input_device->focus_window)
+    xorg_list_for_each_entry(xwl_seat,
+			     &xwl_screen->seat_list, link) {
+	if (!xwl_seat->focus_window)
 	    continue ;
-	if (xwl_input_device->focus_window->window == window) {
-	    xwl_input_device->focus_window = NULL;
-	    SetDeviceRedirectWindow(xwl_input_device->pointer, PointerRootWin);
+	if (xwl_seat->focus_window->window == window) {
+	    xwl_seat->focus_window = NULL;
+	    SetDeviceRedirectWindow(xwl_seat->pointer, PointerRootWin);
 	}
     }
 
