@@ -117,7 +117,8 @@ static ModuleDefault ModuleDefaults[] = {
     {.name = "fb",.toLoad = TRUE,.load_opt = NULL},
     {.name = "shadow",.toLoad = TRUE,.load_opt = NULL},
 #endif
-    {.name = NULL,.toLoad = FALSE,.load_opt = NULL}
+    {.name = "xwayland",.toLoad = FALSE,.load_opt=NULL},
+    {.name = NULL,.toLoad = FALSE,.load_opt=NULL}
 };
 
 /* Forward declarations */
@@ -259,6 +260,17 @@ xf86ModulelistFromConfig(pointer **optlist)
         return NULL;
     }
 
+    /*
+     * Set the xwayland module to autoload if requested.
+     */
+    if (xorgWayland) {
+        for (i=0 ; ModuleDefaults[i].name != NULL ; i++) {
+            if (strcmp(ModuleDefaults[i].name, "xwayland") == 0) {
+                ModuleDefaults[i].toLoad = TRUE;
+            }
+        }
+    }
+    
     if (xf86configptr->conf_modules) {
         /* Walk the disable list and let people know what we've parsed to
          * not be loaded 
