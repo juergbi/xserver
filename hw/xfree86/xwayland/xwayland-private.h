@@ -122,6 +122,6 @@ int wayland_screen_pre_init(struct xwl_screen *screen, int use_drm);
 int wayland_screen_init(struct xwl_screen *screen);
 int wayland_screen_close(struct xwl_screen *screen);
 
-int xwl_drm_pre_init(struct xwl_screen *screen);
+Bool xwl_drm_initialised(struct xwl_screen *screen);
 
 #endif /* _XWAYLAND_PRIVATE_H_ */

@@ -99,6 +99,9 @@ xwl_drm_pre_init(struct xwl_screen *xwl_screen)
 	wl_display_add_global_listener(xwl_screen->display,
 				       drm_handler, xwl_screen);
 
+    /* Ensure drm_handler has seen all the interfaces */
+    wl_display_roundtrip(xwl_screen->display);
+    /* Ensure the xwl_drm_listener has seen the drm device, if any */
     wl_display_roundtrip(xwl_screen->display);
 
     ErrorF("wayland_drm_screen_init, device name %s\n",
@@ -127,6 +130,11 @@ xwl_drm_pre_init(struct xwl_screen *xwl_screen)
     }
 
     return Success;
+}
+
+Bool xwl_drm_initialised(struct xwl_screen *xwl_screen)
+{
+    return xwl_screen->authenticated;
 }
 
 int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)

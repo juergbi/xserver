@@ -44,11 +44,17 @@ extern _X_EXPORT int
 xwl_version(void);
 
 extern _X_EXPORT struct xwl_screen *
-xwl_screen_pre_init(ScrnInfoPtr scrninfo,
+xwl_screen_create(void);
+
+extern _X_EXPORT Bool
+xwl_screen_pre_init(ScrnInfoPtr scrninfo, struct xwl_screen *xwl_screen,
 		    uint32_t flags, struct xwl_driver *driver);
 
 extern _X_EXPORT int
 xwl_screen_init(struct xwl_screen *xwl_screen, ScreenPtr screen);
+
+extern _X_EXPORT int
+xwl_drm_pre_init(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT int
 xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen);

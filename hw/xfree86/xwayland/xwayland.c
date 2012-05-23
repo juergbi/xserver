@@ -208,13 +208,10 @@ xwayland_selection_callback(CallbackListPtr *callbacks,
     }
 }
 
-
 struct xwl_screen *
-xwl_screen_pre_init(ScrnInfoPtr scrninfo,
-		    uint32_t flags, struct xwl_driver *driver)
+xwl_screen_create(void)
 {
     struct xwl_screen *xwl_screen;
-    int ret;
 
     xwl_screen = calloc(sizeof *xwl_screen, 1);
     if (xwl_screen == NULL) {
@@ -222,14 +219,26 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
 	return NULL;
     }
 
+    xwl_screen->display = wl_display_connect(NULL);
+    if (xwl_screen->display == NULL) {
+	ErrorF("wl_display_create failed\n");
+	return NULL;
+    }
+
+    return xwl_screen;
+}
+
+Bool
+xwl_screen_pre_init(ScrnInfoPtr scrninfo, struct xwl_screen *xwl_screen,
+		    uint32_t flags, struct xwl_driver *driver)
+{
     noScreenSaverExtension = TRUE;
 
     xdnd_atom = MakeAtom("XdndSelection", 13, 1);
     ErrorF("xdnd_atom: %d\n", xdnd_atom);
     if (!AddCallback(&SelectionCallback,
 		     xwayland_selection_callback, xwl_screen)) {
-	free(xwl_screen);
-	return NULL;
+	return FALSE;
     }
 
     xorg_list_init(&xwl_screen->seat_list);
@@ -242,33 +251,25 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo,
     if (xorgRootless)
 	xwl_screen->flags |= XWL_FLAGS_ROOTLESS;
 
-    xwl_screen->display = wl_display_connect(NULL);
-    if (xwl_screen->display == NULL) {
-	ErrorF("wl_display_create failed\n");
-	return NULL;
-    }
-
     /* Set up listener so we'll catch all events. */
     xwl_screen->global_listener =
 	    wl_display_add_global_listener(xwl_screen->display,
 					   global_handler, xwl_screen);
 
-    /* Process connection events. */
-    wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+    wl_display_roundtrip(xwl_screen->display);
 
     xwl_screen->wayland_fd =
 	wl_display_get_fd(xwl_screen->display, source_update, xwl_screen);
 
 #ifdef WITH_LIBDRM
-    if (xwl_screen->driver->use_drm)
-	ret = xwl_drm_pre_init(xwl_screen);
-    if (xwl_screen->driver->use_drm && ret != Success)
-	return NULL;
+    if (xwl_screen->driver->use_drm && !xwl_drm_initialised(xwl_screen))
+	if (xwl_drm_pre_init(xwl_screen) != Success)
+            return FALSE;
 #endif
 
     xwayland_screen_preinit_output(xwl_screen, scrninfo);
 
-    return xwl_screen;
+    return TRUE;
 }
 
 int
