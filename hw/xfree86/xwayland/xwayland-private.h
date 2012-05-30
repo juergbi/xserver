@@ -99,7 +99,6 @@ struct xwl_seat {
     struct xwl_window		*focus_window;
     int32_t			 grab_x, grab_y;
     uint32_t			 id;
-    uint32_t			 modifiers;
     uint32_t			 pointer_enter_serial;
     struct xorg_list		 link;
 };

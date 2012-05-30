@@ -373,21 +373,6 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
 
     xwl_seat->xwl_screen->serial = serial;
 
-    switch (key) {
-    case KEY_LEFTMETA:
-    case KEY_RIGHTMETA:
-	modifier = MODIFIER_META;
-	break;
-    default:
-	modifier = 0;
-	break;
-    }
-
-    if (state)
-	xwl_seat->modifiers |= modifier;
-    else
-	xwl_seat->modifiers &= ~modifier;
-
     end = xwl_seat->keys.data + xwl_seat->keys.size;
     for (k = xwl_seat->keys.data; k < end; k++) {
 	if (*k == key)
@@ -412,17 +397,9 @@ keyboard_handle_enter(void *data, struct wl_keyboard *keyboard,
 
     xwl_seat->xwl_screen->serial = serial;
 
-    xwl_seat->modifiers = 0;
     wl_array_copy(&xwl_seat->keys, keys);
-    wl_array_for_each(k, &xwl_seat->keys) {
-	switch (*k) {
-	case KEY_LEFTMETA:
-	case KEY_RIGHTMETA:
-	    xwl_seat->modifiers |= MODIFIER_META;
-	    break;
-	}
+    wl_array_for_each(k, &xwl_seat->keys)
 	xf86PostKeyboardEvent(xwl_seat->keyboard, *k + 8, 1);
-    }
 }
 
 static void
