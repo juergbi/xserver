@@ -369,6 +369,7 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
 {
     struct xwl_seat *xwl_seat = data;
     uint32_t modifier;
+    uint32_t *k, *end;
 
     xwl_seat->xwl_screen->serial = serial;
 
@@ -387,6 +388,17 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
     else
 	xwl_seat->modifiers &= ~modifier;
 
+    end = xwl_seat->keys.data + xwl_seat->keys.size;
+    for (k = xwl_seat->keys.data; k < end; k++) {
+	if (*k == key)
+	    *k = *--end;
+    }
+    xwl_seat->keys.size = (void *) end - xwl_seat->keys.data;
+    if (state) {
+	k = wl_array_add(&xwl_seat->keys, sizeof *k);
+	*k = key;
+    }
+
     xf86PostKeyboardEvent(xwl_seat->keyboard, key + 8, state);
 }
 
@@ -396,19 +408,20 @@ keyboard_handle_enter(void *data, struct wl_keyboard *keyboard,
 		      struct wl_surface *surface, struct wl_array *keys)
 {
     struct xwl_seat *xwl_seat = data;
-    uint32_t *k, *end;
+    uint32_t *k;
 
     xwl_seat->xwl_screen->serial = serial;
 
     xwl_seat->modifiers = 0;
-    end = (uint32_t *) ((char *) keys->data + keys->size);
-    for (k = keys->data; k < end; k++) {
+    wl_array_copy(&xwl_seat->keys, keys);
+    wl_array_for_each(k, &xwl_seat->keys) {
 	switch (*k) {
 	case KEY_LEFTMETA:
 	case KEY_RIGHTMETA:
 	    xwl_seat->modifiers |= MODIFIER_META;
 	    break;
 	}
+	xf86PostKeyboardEvent(xwl_seat->keyboard, *k + 8, 1);
     }
 }
 
@@ -417,8 +430,12 @@ keyboard_handle_leave(void *data, struct wl_keyboard *keyboard,
 		      uint32_t serial, struct wl_surface *surface)
 {
     struct xwl_seat *xwl_seat = data;
+    uint32_t *k;
 
     xwl_seat->xwl_screen->serial = serial;
+
+    wl_array_for_each(k, &xwl_seat->keys)
+	xf86PostKeyboardEvent(xwl_seat->keyboard, *k + 8, 0);
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {
@@ -472,6 +489,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
     xwl_seat->id = id;
 
     wl_seat_add_listener(xwl_seat->seat, &seat_listener, xwl_seat);
+    wl_array_init(&xwl_seat->keys);
 }
 
 static void
