@@ -188,10 +188,6 @@ xwayland_selection_callback(CallbackListPtr *callbacks,
 
     switch (info->kind) {
     case SelectionSetOwner:
-	ErrorF("set selection: atom %s (%d), window %d\n",
-	       NameForAtom(selection->selection),
-	       selection->selection, selection->window);
-
 	if (selection->selection == xdnd_atom) {
 	    if (selection->window != None)
 		ErrorF("client %p starts dnd\n", info->client);
