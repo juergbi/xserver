@@ -341,14 +341,15 @@ pointer_handle_button(void *data, struct wl_pointer *pointer, uint32_t serial,
 
 static void
 pointer_handle_axis(void *data, struct wl_pointer *pointer,
-		    uint32_t time, uint32_t axis, int32_t value)
+		    uint32_t time, uint32_t axis, wl_fixed_t value)
 {
     struct xwl_seat *xwl_seat = data;
     int index;
+    int val = wl_fixed_to_int(value);
 
-    if (value == 1)
+    if (val == 1)
         index = 4;
-    else if (value == -1)
+    else if (val == -1)
         index = 5;
 
     xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 1, 0, 0);
