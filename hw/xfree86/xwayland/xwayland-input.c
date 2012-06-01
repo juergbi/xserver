@@ -415,10 +415,20 @@ keyboard_handle_leave(void *data, struct wl_keyboard *keyboard,
 	xf86PostKeyboardEvent(xwl_seat->keyboard, *k + 8, 0);
 }
 
+static void
+keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard,
+			  uint32_t serial, uint32_t mods_depressed,
+			  uint32_t mods_latched, uint32_t mods_locked,
+			  uint32_t group)
+{
+    /* FIXME: Figure this out... */
+}
+
 static const struct wl_keyboard_listener keyboard_listener = {
 	keyboard_handle_enter,
 	keyboard_handle_leave,
 	keyboard_handle_key,
+	keyboard_handle_modifiers,
 };
 
 static void
