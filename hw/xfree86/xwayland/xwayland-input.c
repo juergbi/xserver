@@ -389,6 +389,15 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
 }
 
 static void
+keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard,
+		       uint32_t format, int fd, uint32_t size)
+{
+    /* FIXME: Handle keymap */
+
+    close(fd);
+}
+
+static void
 keyboard_handle_enter(void *data, struct wl_keyboard *keyboard,
 		      uint32_t serial,
 		      struct wl_surface *surface, struct wl_array *keys)
@@ -426,6 +435,7 @@ keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard,
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {
+	keyboard_handle_keymap,
 	keyboard_handle_enter,
 	keyboard_handle_leave,
 	keyboard_handle_key,
