@@ -275,10 +275,26 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
 
     xwl_seat->xwl_screen->serial = serial;
     xwl_seat->pointer_enter_serial = serial;
+    DeviceIntPtr dev = xwl_seat->pointer;
+    int i;
 
     xwl_seat->focus_window = wl_surface_get_user_data(surface);
 
     SetDeviceRedirectWindow(xwl_seat->pointer, xwl_seat->focus_window->window);
+
+    /* Ideally, X clients shouldn't see these button releases.  When
+     * the pointer leaves a window with buttons down, it means that
+     * the wayland compositor has grabbed the pointer.  The button
+     * release event is consumed by whatever grab in the compositor
+     * and won't be sent to clients (the X server is a client).
+     * However, we need to reset X's idea of which buttons are up and
+     * down, and they're all up (by definition) when the pointer
+     * enters a window.  We should figure out a way to swallow these
+     * events, perhaps using an X grab whenever the pointer is not in
+     * any X window, but for now just send the events. */
+    for (i = 0; i < dev->button->numButtons; i++)
+	if (BitIsOn(dev->button->down, i))
+		xf86PostButtonEvent(dev, TRUE, i, 0, 0, 0);
 }
 
 static void
