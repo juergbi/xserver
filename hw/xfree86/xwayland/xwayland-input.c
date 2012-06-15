@@ -486,6 +486,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
 	wl_display_bind(xwl_screen->display, id, &wl_seat_interface);
     xwl_seat->id = id;
 
+    xwl_seat->cursor = wl_compositor_create_surface(xwl_screen->compositor);
     wl_seat_add_listener(xwl_seat->seat, &seat_listener, xwl_seat);
     wl_array_init(&xwl_seat->keys);
 }

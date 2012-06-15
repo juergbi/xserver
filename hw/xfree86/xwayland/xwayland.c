@@ -36,6 +36,7 @@
 
 #include <xorg-server.h>
 #include <extinit.h>
+
 #include <xf86Xinput.h>
 #include <xf86Crtc.h>
 #include <xf86Priv.h>

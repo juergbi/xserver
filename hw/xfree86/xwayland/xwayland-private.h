@@ -95,6 +95,7 @@ struct xwl_seat {
     struct wl_pointer		*wl_pointer;
     struct wl_keyboard		*wl_keyboard;
     struct wl_array		 keys;
+    struct wl_surface		*cursor;
     int				 grab;
     struct xwl_window		*focus_window;
     int32_t			 grab_x, grab_y;

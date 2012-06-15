@@ -168,9 +168,13 @@ xwl_set_cursor(DeviceIntPtr device,
 
     buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
 
-    wl_pointer_attach(xwl_seat->wl_pointer,
-		      xwl_seat->pointer_enter_serial, buffer,
-		      cursor->bits->xhot, cursor->bits->yhot);
+    wl_pointer_set_cursor(xwl_seat->wl_pointer,
+			  xwl_seat->pointer_enter_serial,
+			  xwl_seat->cursor,
+			  cursor->bits->xhot, cursor->bits->yhot);
+    wl_surface_attach(xwl_seat->cursor, buffer, 0, 0);
+    wl_surface_damage(xwl_seat->cursor, 0, 0,
+		      cursor->bits->width, cursor->bits->height);
 }
 
 static void
