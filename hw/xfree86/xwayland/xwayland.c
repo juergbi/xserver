@@ -98,7 +98,7 @@ static const struct wl_callback_listener delayed_init_listner = {
 };
 
 static void
-global_handler(struct wl_display *display,
+global_handler(struct wl_display *display_,
 	       uint32_t id,
 	       const char *interface,
 	       uint32_t version,
@@ -184,7 +184,6 @@ xwayland_selection_callback(CallbackListPtr *callbacks,
 			    pointer data, pointer args)
 {
     SelectionInfoRec *info = (SelectionInfoRec *) args;
-    struct xwl_screen *xwl_screen = data;
     Selection *selection = info->selection;
 
     switch (info->kind) {

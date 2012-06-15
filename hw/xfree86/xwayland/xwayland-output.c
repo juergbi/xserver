@@ -277,7 +277,7 @@ static const struct wl_output_listener output_listener = {
 };
 
 static void
-global_handler(struct wl_display *display,
+global_handler(struct wl_display *display_,
 	       uint32_t id,
 	       const char *interface,
 	       uint32_t version,

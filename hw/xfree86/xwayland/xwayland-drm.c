@@ -75,7 +75,7 @@ static const struct wl_drm_listener xwl_drm_listener =
 };
 
 static void
-drm_handler(struct wl_display *display,
+drm_handler(struct wl_display *display_,
 	      uint32_t id,
 	      const char *interface,
 	      uint32_t version,
@@ -163,7 +163,6 @@ xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 			     PixmapPtr pixmap, uint32_t name)
 {
     VisualID visual;
-    uint32_t format;
     WindowPtr window = xwl_window->window;
     ScreenPtr screen = window->drawable.pScreen;
     int i;

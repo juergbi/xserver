@@ -266,11 +266,11 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
 
 {
     struct xwl_seat *xwl_seat = data;
+    DeviceIntPtr dev = xwl_seat->pointer;
+    int i;
 
     xwl_seat->xwl_screen->serial = serial;
     xwl_seat->pointer_enter_serial = serial;
-    DeviceIntPtr dev = xwl_seat->pointer;
-    int i;
 
     xwl_seat->focus_window = wl_surface_get_user_data(surface);
 
