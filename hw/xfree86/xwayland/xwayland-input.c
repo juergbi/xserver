@@ -53,12 +53,6 @@
 #include "xwayland.h"
 #include "xwayland-private.h"
 
-/*
- * TODO:
- *  - lose X kb focus when wayland surface loses it
- *  - active grabs, grab owner crack
- */
-
 static void
 xwl_pointer_control(DeviceIntPtr device, PtrCtrl *ctrl)
 {
