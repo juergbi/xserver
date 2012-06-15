@@ -66,14 +66,14 @@ expand_source_and_mask(CursorPtr cursor, void *data)
 	for (x = 0; x < bits->width; x++) {
 	    i = y * stride + x / 8;
 	    bit = 1 << (x & 7);
+	    if (bits->source[i] & bit)
+		d = fg;
+	    else
+		d = bg;
 	    if (bits->mask[i] & bit)
-		d = 0xff000000;
+		d |= 0xff000000;
 	    else
 		d = 0x00000000;
-	    if (bits->source[i] & bit)
-		d |= fg;
-	    else
-		d |= bg;
 
 	    *p++ = d;
 	}
