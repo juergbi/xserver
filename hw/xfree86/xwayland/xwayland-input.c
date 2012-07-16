@@ -268,11 +268,16 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
     struct xwl_seat *xwl_seat = data;
     DeviceIntPtr dev = xwl_seat->pointer;
     int i;
+    int sx = wl_fixed_to_int(sx_w);
+    int sy = wl_fixed_to_int(sy_w);
+    ScreenPtr pScreen = xwl_seat->xwl_screen->screen;
 
     xwl_seat->xwl_screen->serial = serial;
     xwl_seat->pointer_enter_serial = serial;
 
     xwl_seat->focus_window = wl_surface_get_user_data(surface);
+
+    (*pScreen->SetCursorPosition) (dev, pScreen, sx, sy, TRUE);
 
     SetDeviceRedirectWindow(xwl_seat->pointer, xwl_seat->focus_window->window);
 
