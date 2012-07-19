@@ -294,6 +294,8 @@ pointer_handle_enter(void *data, struct wl_pointer *pointer,
     for (i = 0; i < dev->button->numButtons; i++)
 	if (BitIsOn(dev->button->down, i))
 		xf86PostButtonEvent(dev, TRUE, i, 0, 0, 0);
+
+    (*pScreen->DisplayCursor)(dev, pScreen, dev->spriteInfo->sprite->current);
 }
 
 static void
@@ -301,11 +303,14 @@ pointer_handle_leave(void *data, struct wl_pointer *pointer,
 		     uint32_t serial, struct wl_surface *surface)
 {
     struct xwl_seat *xwl_seat = data;
+    DeviceIntPtr dev = xwl_seat->pointer;
+    ScreenPtr pScreen = xwl_seat->xwl_screen->screen;
 
     xwl_seat->xwl_screen->serial = serial;
 
     xwl_seat->focus_window = NULL;
     SetDeviceRedirectWindow(xwl_seat->pointer, PointerRootWin);
+    (*pScreen->DisplayCursor)(dev, pScreen, NullCursor);
 }
 
 static void
