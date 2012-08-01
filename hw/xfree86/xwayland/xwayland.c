@@ -314,8 +314,6 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
     xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
-    xwl_screen->root_x = 0;
-    xwl_screen->root_y = 0;
 
     wl_display_roundtrip(xwl_screen->display);
 }

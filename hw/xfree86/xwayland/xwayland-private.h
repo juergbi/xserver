@@ -62,10 +62,6 @@ struct xwl_screen {
     struct xorg_list		 window_list;
     uint32_t			 serial;
 
-    /* FIXME: Hack. */
-    int32_t			 width, height;
-    int32_t			 root_x, root_y;
-
     CreateWindowProcPtr		 CreateWindow;
     DestroyWindowProcPtr	 DestroyWindow;
     RealizeWindowProcPtr	 RealizeWindow;

@@ -267,9 +267,6 @@ display_handle_mode(void *data,
     if (flags & WL_OUTPUT_MODE_CURRENT) {
 	xwl_output->width = width;
 	xwl_output->height = height;
-
-	xwl_output->xwl_screen->width = width;
-	xwl_output->xwl_screen->height = height;
     }
 }
 
