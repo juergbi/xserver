@@ -127,7 +127,7 @@ static void
 xwl_keyboard_control(DeviceIntPtr device, KeybdCtrl *ctrl)
 {
     /* FIXME: Set keyboard leds based on CAPSFLAG etc being set in
-     * ctrl->leds */
+     * ctrl->leds - needs private protocol. */
 }
 
 static int
@@ -139,6 +139,9 @@ xwl_keyboard_proc(DeviceIntPtr device, int what)
     case DEVICE_INIT:
 	device->public.on = FALSE;
 
+        /* FIXME: Get the keymap from wl_keyboard::keymap events, which
+         *        requires more X server API to set a keymap from a string
+         *        rather than RMLVO. */
         rmlvo.rules = "evdev";
         rmlvo.model = "evdev";
         rmlvo.layout = "us";
@@ -398,7 +401,6 @@ keyboard_handle_key(void *data, struct wl_keyboard *keyboard, uint32_t serial,
 		    uint32_t time, uint32_t key, uint32_t state)
 {
     struct xwl_seat *xwl_seat = data;
-    uint32_t modifier;
     uint32_t *k, *end;
 
     xwl_seat->xwl_screen->serial = serial;
@@ -460,7 +462,7 @@ keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard,
 			  uint32_t mods_latched, uint32_t mods_locked,
 			  uint32_t group)
 {
-    /* FIXME: Figure this out... */
+    /* FIXME: Need more server XKB API here. */
 }
 
 static const struct wl_keyboard_listener keyboard_listener = {
@@ -490,6 +492,7 @@ seat_handle_capabilities(void *data, struct wl_seat *seat,
 	    wl_keyboard_add_listener(xwl_seat->wl_keyboard,
 				     &keyboard_listener, xwl_seat);
 	}
+        /* FIXME: Touch ... */
 }
 
 static const struct wl_seat_listener seat_listener = {
