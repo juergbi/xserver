@@ -105,6 +105,8 @@ xwl_pointer_proc(DeviceIntPtr device, int what)
         if (!InitButtonClassDeviceStruct(device, 3, btn_labels, map))
             return BadValue;
 
+        return Success;
+
     case DEVICE_ON:
 	device->public.on = TRUE;
         return Success;
