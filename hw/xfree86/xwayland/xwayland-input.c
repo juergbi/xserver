@@ -27,6 +27,7 @@
 #include "xorg-config.h"
 #endif
 
+#include <errno.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <linux/input.h>
@@ -53,6 +54,9 @@
 
 #include "xwayland.h"
 #include "xwayland-private.h"
+#include "xserver-client-protocol.h"
+
+extern const struct xserver_listener xwl_server_listener;
 
 static void
 xwl_pointer_control(DeviceIntPtr device, PtrCtrl *ctrl)
@@ -484,6 +488,7 @@ seat_handle_capabilities(void *data, struct wl_seat *seat,
 	    xwl_seat->wl_pointer = wl_seat_get_pointer(seat);
 	    wl_pointer_add_listener(xwl_seat->wl_pointer,
 				    &pointer_listener, xwl_seat);
+            xwl_seat_set_cursor(xwl_seat);
 	}
 
 	if (caps & WL_SEAT_CAPABILITY_KEYBOARD) {
@@ -500,8 +505,7 @@ static const struct wl_seat_listener seat_listener = {
 };
 
 static void
-create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
-		    uint32_t version)
+create_input_device(struct xwl_screen *xwl_screen, uint32_t id)
 {
     struct xwl_seat *xwl_seat;
 
@@ -515,7 +519,7 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
     xorg_list_add(&xwl_seat->link, &xwl_screen->seat_list);
 
     xwl_seat->seat =
-	wl_display_bind(xwl_screen->display, id, &wl_seat_interface);
+	wl_registry_bind(xwl_screen->registry, id, &wl_seat_interface, 1);
     xwl_seat->id = id;
 
     xwl_seat->cursor = wl_compositor_create_surface(xwl_screen->compositor);
@@ -524,23 +528,29 @@ create_input_device(struct xwl_screen *xwl_screen, uint32_t id,
 }
 
 static void
-input_handler(struct wl_display *display,
-	      uint32_t id,
-	      const char *interface,
-	      uint32_t version,
-	      void *data)
+input_handler(void *data, struct wl_registry *registry, uint32_t id,
+	      const char *interface, uint32_t version)
 {
     struct xwl_screen *xwl_screen = data;
 
     if (strcmp (interface, "wl_seat") == 0) {
-        create_input_device(xwl_screen, id, 1);
+        create_input_device(xwl_screen, id);
+    } else if (strcmp(interface, "xserver") == 0) {
+        xwl_screen->xorg_server =
+            wl_registry_bind(registry, id, &xserver_interface, 1);
+        xserver_add_listener(xwl_screen->xorg_server, &xwl_server_listener,
+                             xwl_screen);
     }
 }
+
+static const struct wl_registry_listener input_listener = {
+    input_handler,
+};
 
 void
 xwl_input_init(struct xwl_screen *xwl_screen)
 {
-    xwl_screen->input_listener =
-	wl_display_add_global_listener(xwl_screen->display,
-				       input_handler, xwl_screen);
+    xwl_screen->input_registry = wl_display_get_registry(xwl_screen->display);
+    wl_registry_add_listener(xwl_screen->input_registry, &input_listener,
+                             xwl_screen);
 }

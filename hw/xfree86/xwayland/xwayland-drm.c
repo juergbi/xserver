@@ -75,29 +75,30 @@ static const struct wl_drm_listener xwl_drm_listener =
 };
 
 static void
-drm_handler(struct wl_display *display_,
-	      uint32_t id,
-	      const char *interface,
-	      uint32_t version,
-	      void *data)
+drm_handler(void *data, struct wl_registry *registry, uint32_t id,
+	    const char *interface, uint32_t version)
 {
     struct xwl_screen *xwl_screen = data;
 
     if (strcmp (interface, "wl_drm") == 0) {
-	xwl_screen->drm = wl_display_bind(xwl_screen->display,
-					  id, &wl_drm_interface);
-	wl_drm_add_listener (xwl_screen->drm, &xwl_drm_listener, xwl_screen);
+	xwl_screen->drm = wl_registry_bind(xwl_screen->registry, id,
+                                           &wl_drm_interface, 1);
+	wl_drm_add_listener(xwl_screen->drm, &xwl_drm_listener, xwl_screen);
     }
 }
+
+static const struct wl_registry_listener drm_listener = {
+    drm_handler,
+};
 
 int
 xwl_drm_pre_init(struct xwl_screen *xwl_screen)
 {
     uint32_t magic;
 
-    xwl_screen->drm_listener =
-	wl_display_add_global_listener(xwl_screen->display,
-				       drm_handler, xwl_screen);
+    xwl_screen->drm_registry = wl_display_get_registry(xwl_screen->display);
+    wl_registry_add_listener(xwl_screen->drm_registry, &drm_listener,
+                             xwl_screen);
 
     /* Ensure drm_handler has seen all the interfaces */
     wl_display_roundtrip(xwl_screen->display);
@@ -145,14 +146,18 @@ int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
 int xwl_drm_authenticate(struct xwl_screen *xwl_screen,
 			    uint32_t magic)
 {
+    int ret;
+
     xwl_screen->authenticated = 0;
 
     if (xwl_screen->drm)
 	wl_drm_authenticate (xwl_screen->drm, magic);
 
-    wl_display_iterate (xwl_screen->display, WL_DISPLAY_WRITABLE);
-    while (!xwl_screen->authenticated)
-	wl_display_iterate (xwl_screen->display, WL_DISPLAY_READABLE);
+    ret = wl_display_roundtrip(xwl_screen->display);
+    if (ret == -1)
+	return BadAlloc;
+    if (!xwl_screen->authenticated)
+	return BadAlloc;
 
     return Success;
 }

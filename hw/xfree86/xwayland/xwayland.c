@@ -68,7 +68,7 @@ xserver_listen_socket(void *data, struct xserver *xserver, int fd)
     ListenOnOpenFD(fd, TRUE);
 }
 
-static const struct xserver_listener xserver_listener = {
+const struct xserver_listener xwl_server_listener = {
     xserver_client,
     xserver_listen_socket
 };
@@ -77,20 +77,11 @@ static void
 xwl_input_delayed_init(void *data, struct wl_callback *callback, uint32_t time)
 {
     struct xwl_screen *xwl_screen = data;
-    uint32_t id;
 
     ErrorF("xwl_input_delayed_init\n");
 
     wl_callback_destroy(callback);
     xwl_input_init(xwl_screen);
-
-    id = wl_display_get_global(xwl_screen->display, "xserver", 1);
-    if (id != 0) {
-        xwl_screen->xorg_server = wl_display_bind(xwl_screen->display,
-						  id, &xserver_interface);
-	xserver_add_listener(xwl_screen->xorg_server,
-			     &xserver_listener, xwl_screen);
-    }
 }
 
 static const struct wl_callback_listener delayed_init_listner = {
@@ -98,53 +89,54 @@ static const struct wl_callback_listener delayed_init_listner = {
 };
 
 static void
-global_handler(struct wl_display *display_,
-	       uint32_t id,
-	       const char *interface,
-	       uint32_t version,
-	       void *data)
+registry_global(void *data, struct wl_registry *registry, uint32_t id,
+	        const char *interface, uint32_t version)
 {
     struct xwl_screen *xwl_screen = data;
 
     if (strcmp (interface, "wl_compositor") == 0) {
 	xwl_screen->compositor =
-		wl_display_bind(xwl_screen->display,
-				id, &wl_compositor_interface);
-    } else if (strcmp (interface, "wl_shm") == 0) {
-        xwl_screen->shm = wl_display_bind(xwl_screen->display,
-					  id, &wl_shm_interface);
+            wl_registry_bind(registry, id, &wl_compositor_interface, 1);
+    } else if (strcmp(interface, "wl_shm") == 0) {
+        xwl_screen->shm =
+            wl_registry_bind(registry, id, &wl_shm_interface, 1);
     }
 }
 
-static int
-source_update(uint32_t mask, void *data)
-{
-    struct xwl_screen *xwl_screen = data;
-
-    xwl_screen->mask = mask;
-
-    return 0;
-}
+static const struct wl_registry_listener registry_listener = {
+    registry_global,
+};
 
 static void
 wakeup_handler(pointer data, int err, pointer read_mask)
 {
     struct xwl_screen *xwl_screen = data;
+    int ret;
 
-    if (err >= 0 && FD_ISSET(xwl_screen->wayland_fd, (fd_set *) read_mask))
-	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
+    if (err < 0)
+        return;
+
+    if (!FD_ISSET(xwl_screen->wayland_fd, (fd_set *) read_mask))
+        return;
+
+    ret = wl_display_dispatch(xwl_screen->display);
+    if (ret == -1)
+        FatalError("failed to dispatch Wayland events: %s\n", strerror(errno));
 }
 
 static void
 block_handler(pointer data, struct timeval **tv, pointer read_mask)
 {
     struct xwl_screen *xwl_screen = data;
+    int ret;
 
-    /* The X servers "main loop" doesn't let us select for
-     * writable, so let's just do a blocking write here. */
+    ret = wl_display_dispatch_pending(xwl_screen->display);
+    if (ret == -1)
+	FatalError("failed to dispatch Wayland events: %s\n", strerror(errno));
 
-    while (xwl_screen->mask & WL_DISPLAY_WRITABLE)
-	wl_display_iterate(xwl_screen->display, WL_DISPLAY_WRITABLE);
+    ret = wl_display_flush(xwl_screen->display);
+    if (ret == -1)
+        FatalError("failed to write to XWayland fd: %s\n", strerror(errno));
 }
 
 int
@@ -228,10 +220,11 @@ Bool
 xwl_screen_pre_init(ScrnInfoPtr scrninfo, struct xwl_screen *xwl_screen,
 		    uint32_t flags, struct xwl_driver *driver)
 {
+    int ret;
+
     noScreenSaverExtension = TRUE;
 
     xdnd_atom = MakeAtom("XdndSelection", 13, 1);
-    ErrorF("xdnd_atom: %d\n", xdnd_atom);
     if (!AddCallback(&SelectionCallback,
 		     xwayland_selection_callback, xwl_screen)) {
 	return FALSE;
@@ -243,19 +236,21 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo, struct xwl_screen *xwl_screen,
     xwl_screen->scrninfo = scrninfo;
     xwl_screen->driver = driver;
     xwl_screen->flags = flags;
+    xwl_screen->wayland_fd = wl_display_get_fd(xwl_screen->display);
 
     if (xorgRootless)
 	xwl_screen->flags |= XWL_FLAGS_ROOTLESS;
 
     /* Set up listener so we'll catch all events. */
-    xwl_screen->global_listener =
-	    wl_display_add_global_listener(xwl_screen->display,
-					   global_handler, xwl_screen);
-
-    wl_display_roundtrip(xwl_screen->display);
-
-    xwl_screen->wayland_fd =
-	wl_display_get_fd(xwl_screen->display, source_update, xwl_screen);
+    xwl_screen->registry = wl_display_get_registry(xwl_screen->display);
+    wl_registry_add_listener(xwl_screen->registry, &registry_listener,
+                             xwl_screen);
+    ret = wl_display_roundtrip(xwl_screen->display);
+    if (ret == -1) {
+        xf86DrvMsg(scrninfo->scrnIndex, X_ERROR,
+                   "failed to dispatch Wayland events: %s\n", strerror(errno));
+        return FALSE;
+    }
 
 #ifdef WITH_LIBDRM
     if (xwl_screen->driver->use_drm && !xwl_drm_initialised(xwl_screen))
@@ -293,10 +288,9 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
     struct xwl_seat *xwl_seat, *itmp;
     struct xwl_window *xwl_window, *wtmp;
 
-    if (xwl_screen->input_listener)
-	wl_display_remove_global_listener(xwl_screen->display,
-					  xwl_screen->input_listener);
-
+    if (xwl_screen->registry)
+        wl_registry_destroy(xwl_screen->registry);
+    xwl_screen->registry = NULL;
 
     xorg_list_for_each_entry_safe(xwl_seat, itmp,
 				  &xwl_screen->seat_list, link) {
@@ -310,7 +304,6 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
 	free(xwl_window);
     }
 
-    xwl_screen->input_listener = NULL;
     xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
@@ -349,6 +342,7 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 			      box->x2 - box->x1 + 1,
 			      box->y2 - box->y1 + 1);
 	}
+	wl_surface_commit(xwl_window->surface);
 	DamageEmpty(xwl_window->damage);
     }
 

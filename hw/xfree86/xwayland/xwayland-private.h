@@ -46,10 +46,11 @@ struct xwl_screen {
     int				 wayland_fd;
     struct xwl_output		*xwl_output;
     struct wl_display		*display;
+    struct wl_registry          *registry;
+    struct wl_registry          *drm_registry;
+    struct wl_registry          *input_registry;
+    struct wl_registry          *output_registry;
     struct wl_compositor	*compositor;
-    struct wl_global_listener   *global_listener;
-    struct wl_global_listener   *drm_listener;
-    struct wl_global_listener   *input_listener;
     struct wl_drm		*drm;
     struct wl_shm		*shm;
     struct xserver		*xorg_server;
@@ -96,6 +97,7 @@ struct xwl_seat {
     uint32_t			 id;
     uint32_t			 pointer_enter_serial;
     struct xorg_list		 link;
+    CursorPtr                    x_cursor;
 };
 
 struct xwl_screen *xwl_screen_get(ScreenPtr screen);
@@ -112,5 +114,9 @@ pointer xwl_input_setup(pointer module, pointer opts, int *errmaj, int *errmin);
 void xwl_input_init(struct xwl_screen *screen);
 
 Bool xwl_drm_initialised(struct xwl_screen *screen);
+
+void xwl_seat_set_cursor(struct xwl_seat *xwl_seat);
+
+extern const struct xserver_listener xwl_server_listener;
 
 #endif /* _XWAYLAND_PRIVATE_H_ */

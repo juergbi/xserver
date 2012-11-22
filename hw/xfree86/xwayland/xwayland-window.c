@@ -81,6 +81,7 @@ xwl_window_attach(struct xwl_window *xwl_window, PixmapPtr pixmap)
     wl_surface_damage(xwl_window->surface, 0, 0,
 		      pixmap->drawable.width,
 		      pixmap->drawable.height);
+    wl_surface_commit(xwl_window->surface);
 
     callback = wl_display_sync(xwl_screen->display);
     wl_callback_add_listener(callback, &free_pixmap_listener, pixmap);

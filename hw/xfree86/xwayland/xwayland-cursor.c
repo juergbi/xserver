@@ -147,16 +147,35 @@ xwl_unrealize_cursor(DeviceIntPtr device,
     return TRUE;
 }
 
+void
+xwl_seat_set_cursor(struct xwl_seat *xwl_seat)
+{
+    struct wl_buffer *buffer;
+
+    if (!xwl_seat->x_cursor || !xwl_seat->wl_pointer)
+        return;
+
+    buffer = dixGetPrivate(&xwl_seat->x_cursor->devPrivates,
+                           &xwl_cursor_private_key);
+
+    wl_pointer_set_cursor(xwl_seat->wl_pointer,
+			  xwl_seat->pointer_enter_serial,
+			  xwl_seat->cursor,
+			  xwl_seat->x_cursor->bits->xhot,
+			  xwl_seat->x_cursor->bits->yhot);
+    wl_surface_attach(xwl_seat->cursor, buffer, 0, 0);
+    wl_surface_damage(xwl_seat->cursor, 0, 0,
+		      xwl_seat->x_cursor->bits->width,
+		      xwl_seat->x_cursor->bits->height);
+    wl_surface_commit(xwl_seat->cursor);
+}
+
 static void
 xwl_set_cursor(DeviceIntPtr device,
 	       ScreenPtr screen, CursorPtr cursor, int x, int y)
 {
     struct xwl_screen *xwl_screen;
     struct xwl_seat *xwl_seat;
-    struct wl_buffer *buffer;
-
-    if (!cursor)
-	return;
 
     xwl_screen = xwl_screen_get(screen);
 
@@ -164,17 +183,10 @@ xwl_set_cursor(DeviceIntPtr device,
 	return;
 
     xwl_seat = xorg_list_first_entry(&xwl_screen->seat_list,
-					     struct xwl_seat, link);
+		                     struct xwl_seat, link);
 
-    buffer = dixGetPrivate(&cursor->devPrivates, &xwl_cursor_private_key);
-
-    wl_pointer_set_cursor(xwl_seat->wl_pointer,
-			  xwl_seat->pointer_enter_serial,
-			  xwl_seat->cursor,
-			  cursor->bits->xhot, cursor->bits->yhot);
-    wl_surface_attach(xwl_seat->cursor, buffer, 0, 0);
-    wl_surface_damage(xwl_seat->cursor, 0, 0,
-		      cursor->bits->width, cursor->bits->height);
+    xwl_seat->x_cursor = cursor;
+    xwl_seat_set_cursor(xwl_seat);
 }
 
 static void

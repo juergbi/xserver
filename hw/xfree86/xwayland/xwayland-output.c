@@ -212,14 +212,9 @@ static const xf86CrtcConfigFuncsRec config_funcs = {
 };
 
 static void
-display_handle_geometry(void *data,
-			struct wl_output *wl_output,
-			int x, int y,
-			int physical_width,
-			int physical_height,
-			int subpixel,
-			const char *make,
-			const char *model)
+display_handle_geometry(void *data, struct wl_output *wl_output, int x, int y,
+			int physical_width, int physical_height, int subpixel,
+			const char *make, const char *model, int transform)
 {
     struct xwl_output *xwl_output = data;
     struct xwl_screen *xwl_screen = xwl_output->xwl_screen;
@@ -255,12 +250,8 @@ display_handle_geometry(void *data,
 }
 
 static void
-display_handle_mode(void *data,
-		    struct wl_output *wl_output,
-		    uint32_t flags,
-		    int width,
-		    int height,
-		    int refresh)
+display_handle_mode(void *data, struct wl_output *wl_output, uint32_t flags,
+		    int width, int height, int refresh)
 {
     struct xwl_output *xwl_output = data;
 
@@ -276,39 +267,43 @@ static const struct wl_output_listener output_listener = {
 };
 
 static void
-global_handler(struct wl_display *display_,
-	       uint32_t id,
-	       const char *interface,
-	       uint32_t version,
-	       void *data)
+global_handler(void *data, struct wl_registry *registry, uint32_t id,
+	       const char *interface, uint32_t version)
 {
     struct xwl_screen *xwl_screen = data;
     struct xwl_output *xwl_output;
 
     if (strcmp (interface, "wl_output") == 0) {
 	xwl_output = xwl_output_create(xwl_screen);
-
-	xwl_output->output = wl_display_bind(xwl_screen->display,
-					     id, &wl_output_interface);
+	xwl_output->output = wl_registry_bind(registry, id,
+	                                      &wl_output_interface, 1);
 	wl_output_add_listener(xwl_output->output,
 			       &output_listener, xwl_output);
     }
 }
 
+static const struct wl_registry_listener global_listener = {
+    global_handler,
+};
+
 void
 xwayland_screen_preinit_output(struct xwl_screen *xwl_screen, ScrnInfoPtr scrninfo)
 {
+    int ret;
+
     xf86CrtcConfigInit(scrninfo, &config_funcs);
 
     xf86CrtcSetSizeRange(scrninfo, 320, 200, 8192, 8192);
 
-    xwl_screen->global_listener =
-	wl_display_add_global_listener(xwl_screen->display,
-				       global_handler, xwl_screen);
+    xwl_screen->output_registry = wl_display_get_registry(xwl_screen->display);
+    wl_registry_add_listener(xwl_screen->output_registry, &global_listener,
+                             xwl_screen);
 
-    wl_display_flush(xwl_screen->display);
-    while (xwl_screen->xwl_output == NULL)
-	wl_display_iterate(xwl_screen->display, WL_DISPLAY_READABLE);
-    
+    while (!xwl_screen->xwl_output) {
+        ret = wl_display_roundtrip(xwl_screen->display);
+        if (ret == -1)
+            FatalError("failed to dispatch Wayland events: %s\n", strerror(errno));
+    }
+
     xf86InitialConfiguration(scrninfo, TRUE);
 }
