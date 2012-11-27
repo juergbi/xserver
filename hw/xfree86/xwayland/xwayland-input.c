@@ -40,6 +40,7 @@
 #include <extinit.h>
 #include <exevents.h>
 #include <input.h>
+#include <inpututils.h>
 #include <inputstr.h>
 #include <exevents.h>
 #include <xkbsrv.h>
@@ -322,6 +323,7 @@ pointer_handle_motion(void *data, struct wl_pointer *pointer,
     int32_t dx, dy, lx, ly;
     int sx = wl_fixed_to_int(sx_w);
     int sy = wl_fixed_to_int(sy_w);
+    ValuatorMask mask;
 
     if (!xwl_seat->focus_window)
 	return ;
@@ -329,10 +331,12 @@ pointer_handle_motion(void *data, struct wl_pointer *pointer,
     dx = xwl_seat->focus_window->window->drawable.x;
     dy = xwl_seat->focus_window->window->drawable.y;
 
-    lx = xf86ScaleAxis(sx + dx, 0xFFFF, 0, xwl_screen->scrninfo->virtualX, 0);
-    ly = xf86ScaleAxis(sy + dy, 0xFFFF, 0, xwl_screen->scrninfo->virtualY, 0);
+    valuator_mask_zero(&mask);
+    valuator_mask_set(&mask, 0, dx + sx);
+    valuator_mask_set(&mask, 1, dy + sy);
 
-    xf86PostMotionEvent(xwl_seat->pointer, TRUE, 0, 2, lx, ly);
+    QueuePointerEvents(xwl_seat->pointer, MotionNotify, 0,
+		       POINTER_ABSOLUTE | POINTER_SCREEN, &mask);
 }
 
 static void
