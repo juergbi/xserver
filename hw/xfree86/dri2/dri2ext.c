@@ -136,11 +136,23 @@ ProcDRI2Connect(ClientPtr client)
     return Success;
 }
 
+void
+DRI2SendAuthReply(ClientPtr client, Bool status)
+{
+    xDRI2AuthenticateReply rep;
+
+    rep.type = X_Reply;
+    rep.sequenceNumber = client->sequence;
+    rep.length = 0;
+    rep.authenticated = status;
+
+    WriteToClient(client, sizeof(xDRI2AuthenticateReply), &rep);
+}
+
 static int
 ProcDRI2Authenticate(ClientPtr client)
 {
     REQUEST(xDRI2AuthenticateReq);
-    xDRI2AuthenticateReply rep;
     DrawablePtr pDraw;
     int status;
 
@@ -149,13 +161,12 @@ ProcDRI2Authenticate(ClientPtr client)
                        &pDraw, &status))
         return status;
 
-    rep = (xDRI2AuthenticateReply) {
-        .type = X_Reply,
-        .sequenceNumber = client->sequence,
-        .length = 0,
-        .authenticated = DRI2Authenticate(client, pDraw->pScreen, stuff->magic)
-    };
-    WriteToClient(client, sizeof(xDRI2AuthenticateReply), &rep);
+    status = DRI2Authenticate(client, pDraw->pScreen, stuff->magic);
+
+    /* if non-blocking authentication is in progress, then don't send a reply
+     * now but later in the implementation (e.g. drm_handle_authenticated) */
+    if (client->ignoreCount == 0)
+        DRI2SendAuthReply(client, status);
 
     return Success;
 }

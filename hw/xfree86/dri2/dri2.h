@@ -65,6 +65,8 @@ typedef void (*DRI2CopyRegionProcPtr) (DrawablePtr pDraw,
 typedef void (*DRI2WaitProcPtr) (WindowPtr pWin, unsigned int sequence);
 typedef int (*DRI2AuthMagicProcPtr) (int fd, uint32_t magic);
 typedef int (*DRI2AuthMagic2ProcPtr) (ScreenPtr pScreen, uint32_t magic);
+typedef int (*DRI2AuthMagic3ProcPtr) (ClientPtr client,
+                                      ScreenPtr pScreen, uint32_t magic);
 
 /**
  * Schedule a buffer swap
@@ -252,6 +254,9 @@ typedef struct {
     DRI2CreateBuffer2ProcPtr CreateBuffer2;
     DRI2DestroyBuffer2ProcPtr DestroyBuffer2;
     DRI2CopyRegion2ProcPtr CopyRegion2;
+
+    /* MERGE NOTE: added in xwayland branch */
+    DRI2AuthMagic3ProcPtr AuthMagic3;
 } DRI2InfoRec, *DRI2InfoPtr;
 
 extern _X_EXPORT Bool DRI2ScreenInit(ScreenPtr pScreen, DRI2InfoPtr info);
@@ -267,6 +272,8 @@ extern _X_EXPORT Bool DRI2Connect(ClientPtr client, ScreenPtr pScreen,
                                   const char **deviceName);
 
 extern _X_EXPORT Bool DRI2Authenticate(ClientPtr client, ScreenPtr pScreen, uint32_t magic);
+
+extern _X_EXPORT void DRI2SendAuthReply(ClientPtr client, Bool status);
 
 extern _X_EXPORT int DRI2CreateDrawable(ClientPtr client,
                                         DrawablePtr pDraw,

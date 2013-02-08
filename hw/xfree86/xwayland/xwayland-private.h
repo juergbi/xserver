@@ -61,6 +61,7 @@ struct xwl_screen {
     struct xorg_list		 seat_list;
     struct xorg_list		 damage_window_list;
     struct xorg_list		 window_list;
+    struct xorg_list		 authenticate_client_list;
     uint32_t			 serial;
 
     CreateWindowProcPtr		 CreateWindow;

@@ -45,6 +45,15 @@
 
 #include "xwayland.h"
 #include "xwayland-private.h"
+#include "../dri2/dri2.h"
+
+struct xwl_auth_req {
+    struct xorg_list link;
+
+    ClientPtr client;
+    struct xwl_screen *xwl_screen;
+    uint32_t magic;
+};
 
 static void
 drm_handle_device (void *data, struct wl_drm *drm, const char *device)
@@ -63,8 +72,31 @@ static void
 drm_handle_authenticated (void *data, struct wl_drm *drm)
 {
     struct xwl_screen *xwl_screen = data;
+    struct xwl_auth_req *req;
 
     xwl_screen->authenticated = 1;
+
+    /* it does one authentication transaction at a time, so if there's an
+     * element in the list, we call DRI2SendAuthReply for that client, remove
+     * the head and free the struct. If there are still elements in the list,
+     * it means that we have one or more clients waiting to be authenticated
+     * and we send out a wl_drm authenticate request for the first client in
+     * the list */
+    if (xorg_list_is_empty(&xwl_screen->authenticate_client_list))
+	return;
+
+    req = xorg_list_first_entry(&xwl_screen->authenticate_client_list,
+	                        struct xwl_auth_req, link);
+    DRI2SendAuthReply(req->client, TRUE);
+    AttendClient(req->client);
+    xorg_list_del(&req->link);
+    free(req);
+
+    xorg_list_for_each_entry(req, &xwl_screen->authenticate_client_list,
+	                     link) {
+	wl_drm_authenticate (xwl_screen->drm, req->magic);
+	return;
+    }
 }
 
 static const struct wl_drm_listener xwl_drm_listener =
@@ -143,21 +175,29 @@ int xwl_screen_get_drm_fd(struct xwl_screen *xwl_screen)
     return xwl_screen->drm_fd;
 }
 
-int xwl_drm_authenticate(struct xwl_screen *xwl_screen,
+int xwl_drm_authenticate(ClientPtr client, struct xwl_screen *xwl_screen,
 			    uint32_t magic)
 {
-    int ret;
+    struct xwl_auth_req *req;
 
-    xwl_screen->authenticated = 0;
+    if (!xwl_screen->drm)
+	return BadAccess;
 
-    if (xwl_screen->drm)
+    req = malloc (sizeof *req);
+    if (req == NULL)
+	return BadAlloc;
+
+    req->client = client;
+    req->xwl_screen = xwl_screen;
+    req->magic = magic;
+
+    if (xorg_list_is_empty(&xwl_screen->authenticate_client_list))
 	wl_drm_authenticate (xwl_screen->drm, magic);
 
-    ret = wl_display_roundtrip(xwl_screen->display);
-    if (ret == -1)
-	return BadAlloc;
-    if (!xwl_screen->authenticated)
-	return BadAlloc;
+    xorg_list_append(&req->link, &xwl_screen->authenticate_client_list);
+
+    IgnoreClient(req->client);
+    xwl_screen->authenticated = 0;
 
     return Success;
 }

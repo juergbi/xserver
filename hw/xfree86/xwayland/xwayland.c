@@ -233,6 +233,7 @@ xwl_screen_pre_init(ScrnInfoPtr scrninfo, struct xwl_screen *xwl_screen,
     xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
+    xorg_list_init(&xwl_screen->authenticate_client_list);
     xwl_screen->scrninfo = scrninfo;
     xwl_screen->driver = driver;
     xwl_screen->flags = flags;
@@ -307,6 +308,7 @@ void xwl_screen_close(struct xwl_screen *xwl_screen)
     xorg_list_init(&xwl_screen->seat_list);
     xorg_list_init(&xwl_screen->damage_window_list);
     xorg_list_init(&xwl_screen->window_list);
+    xorg_list_init(&xwl_screen->authenticate_client_list);
 
     wl_display_roundtrip(xwl_screen->display);
 }

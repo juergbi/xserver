@@ -69,7 +69,7 @@ extern _X_EXPORT void
 xwl_screen_post_damage(struct xwl_screen *xwl_screen);
 
 extern _X_EXPORT int
-xwl_drm_authenticate(struct xwl_screen *xwl_screen,
+xwl_drm_authenticate(ClientPtr client, struct xwl_screen *xwl_screen,
 		     uint32_t magic);
 
 extern _X_EXPORT int
