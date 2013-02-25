@@ -381,12 +381,26 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
     int val = wl_fixed_to_int(value);
 
     /* FIXME: Need to do proper smooth scrolling here! */
-    if (val == 1)
-        index = 4;
-    else if (val == -1)
-        index = 5;
-    else
-        return;
+    switch (axis) {
+    case WL_POINTER_AXIS_VERTICAL_SCROLL:
+	if (val <= -1)
+            index = 4;
+	else if (val >= 1)
+            index = 5;
+	else
+            return;
+	break;
+    case WL_POINTER_AXIS_HORIZONTAL_SCROLL:
+	if (val <= -1)
+            index = 6;
+	else if (val >= 1)
+            index = 7;
+	else
+            return;
+	break;
+    default:
+	return;
+    }
 
     xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 1, 0, 0);
     xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 0, 0, 0);
