@@ -344,6 +344,9 @@ void xwl_screen_post_damage(struct xwl_screen *xwl_screen)
 			      box->x2 - box->x1 + 1,
 			      box->y2 - box->y1 + 1);
 	}
+	wl_surface_attach(xwl_window->surface,
+			  xwl_window->buffer,
+			  0, 0);
 	wl_surface_commit(xwl_window->surface);
 	DamageEmpty(xwl_window->damage);
     }
