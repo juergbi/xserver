@@ -99,10 +99,7 @@ typedef struct XkbCompContext {
 } XkbCompContextRec, *XkbCompContextPtr;
 
 static Bool
-XkbDDXCompileKeymapByNames(XkbDescPtr xkb,
-                           XkbComponentNamesPtr names,
-                           unsigned want,
-                           unsigned need, XkbCompContextPtr ctx)
+StartXkbComp(XkbCompContextPtr ctx)
 {
     char xkm_output_dir[PATH_MAX];
 
@@ -168,14 +165,15 @@ XkbDDXCompileKeymapByNames(XkbDescPtr xkb,
     ctx->out = fopen(ctx->tmpname, "w");
 #endif
 
+    return ctx->out != NULL;
+}
+
+static Bool
+FinishXkbComp(XkbCompContextPtr ctx)
+{
+    if (!ctx->buf)
+	return FALSE;
     if (ctx->out != NULL) {
-#ifdef DEBUG
-        if (xkbDebugFlags) {
-            ErrorF("[xkb] XkbDDXCompileKeymapByNames compiling keymap:\n");
-            XkbWriteXKBKeymapForNames(stderr, names, xkb, want, need);
-        }
-#endif
-        XkbWriteXKBKeymapForNames(ctx->out, names, xkb, want, need);
 #ifndef WIN32
         if (Pclose(ctx->out) == 0)
 #else
@@ -207,6 +205,25 @@ XkbDDXCompileKeymapByNames(XkbDescPtr xkb,
     ctx->keymap[0] = '\0';
     free(ctx->buf);
     return FALSE;
+}
+
+static Bool
+XkbDDXCompileKeymapByNames(XkbDescPtr xkb,
+                           XkbComponentNamesPtr names,
+                           unsigned want,
+                           unsigned need, XkbCompContextPtr ctx)
+{
+    if (StartXkbComp(ctx)) {
+#ifdef DEBUG
+        if (xkbDebugFlags) {
+            ErrorF("[xkb] XkbDDXCompileKeymapByNames compiling keymap:\n");
+            XkbWriteXKBKeymapForNames(stderr, names, xkb, want, need);
+        }
+#endif
+        XkbWriteXKBKeymapForNames(ctx->out, names, xkb, want, need);
+    }
+
+    return FinishXkbComp(ctx);
 }
 
 static FILE *
