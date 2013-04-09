@@ -262,37 +262,14 @@ XkbDDXOpenConfigFile(char *mapName, char *fileNameRtrn, int fileNameRtrnLen)
     return file;
 }
 
-unsigned
-XkbDDXLoadKeymapByNames(DeviceIntPtr keybd,
-                        XkbComponentNamesPtr names,
-                        unsigned want,
-                        unsigned need,
-                        XkbDescPtr *xkbRtrn, char *nameRtrn, int nameRtrnLen)
+static unsigned
+LoadXKM(unsigned want, unsigned need, XkbCompContextPtr ctx, XkbDescPtr *xkbRtrn)
 {
-    XkbDescPtr xkb;
     FILE *file;
     char fileName[PATH_MAX];
     unsigned missing;
-    XkbCompContextRec ctx;
 
-    *xkbRtrn = NULL;
-    if ((keybd == NULL) || (keybd->key == NULL) ||
-        (keybd->key->xkbInfo == NULL))
-        xkb = NULL;
-    else
-        xkb = keybd->key->xkbInfo->desc;
-    if ((names->keycodes == NULL) && (names->types == NULL) &&
-        (names->compat == NULL) && (names->symbols == NULL) &&
-        (names->geometry == NULL)) {
-        LogMessage(X_ERROR, "XKB: No components provided for device %s\n",
-                   keybd->name ? keybd->name : "(unnamed keyboard)");
-        return 0;
-    }
-    else if (!XkbDDXCompileKeymapByNames(xkb, names, want, need, &ctx)) {
-        LogMessage(X_ERROR, "XKB: Couldn't compile keymap\n");
-        return 0;
-    }
-    file = XkbDDXOpenConfigFile(ctx.keymap, fileName, PATH_MAX);
+    file = XkbDDXOpenConfigFile(ctx->keymap, fileName, PATH_MAX);
     if (file == NULL) {
         LogMessage(X_ERROR, "Couldn't open compiled keymap file %s\n",
                    fileName);
@@ -312,6 +289,59 @@ XkbDDXLoadKeymapByNames(DeviceIntPtr keybd,
     fclose(file);
     (void) unlink(fileName);
     return (need | want) & (~missing);
+}
+
+unsigned
+XkbDDXLoadKeymapByNames(DeviceIntPtr keybd,
+                        XkbComponentNamesPtr names,
+                        unsigned want,
+                        unsigned need,
+                        XkbDescPtr *xkbRtrn, char *nameRtrn, int nameRtrnLen)
+{
+    XkbDescPtr xkb;
+    XkbCompContextRec ctx;
+
+    *xkbRtrn = NULL;
+    if ((keybd == NULL) || (keybd->key == NULL) ||
+        (keybd->key->xkbInfo == NULL))
+        xkb = NULL;
+    else
+        xkb = keybd->key->xkbInfo->desc;
+    if ((names->keycodes == NULL) && (names->types == NULL) &&
+        (names->compat == NULL) && (names->symbols == NULL) &&
+        (names->geometry == NULL)) {
+        LogMessage(X_ERROR, "XKB: No components provided for device %s\n",
+                   keybd->name ? keybd->name : "(unnamed keyboard)");
+        return 0;
+    }
+    else if (!XkbDDXCompileKeymapByNames(xkb, names, want, need, &ctx)) {
+        LogMessage(X_ERROR, "XKB: Couldn't compile keymap\n");
+        return 0;
+    }
+
+    return LoadXKM(want, need, &ctx, xkbRtrn);
+}
+
+static unsigned
+XkbDDXLoadKeymapFromString(DeviceIntPtr keybd,
+			   const char *keymap, int keymap_length,
+			   unsigned want,
+			   unsigned need,
+			   XkbDescPtr *xkbRtrn)
+{
+    XkbCompContextRec ctx;
+
+    *xkbRtrn = NULL;
+
+    if (StartXkbComp(&ctx))
+	fwrite(keymap, keymap_length, 1, ctx.out);
+
+    if (!FinishXkbComp(&ctx)) {
+        LogMessage(X_ERROR, "XKB: Couldn't compile keymap\n");
+        return 0;
+    }
+
+    return LoadXKM(want, need, &ctx, xkbRtrn);
 }
 
 Bool
@@ -407,6 +437,29 @@ XkbCompileKeymapForDevice(DeviceIntPtr dev, XkbRMLVOSet * rmlvo, int need)
     return xkb;
 }
 
+static XkbDescPtr
+KeymapOrDefaults(DeviceIntPtr dev, XkbDescPtr xkb)
+{
+    XkbRMLVOSet dflts;
+
+    if (xkb)
+	return xkb;
+
+    /* we didn't get what we really needed. And that will likely leave
+     * us with a keyboard that doesn't work. Use the defaults instead */
+    LogMessage(X_ERROR, "XKB: Failed to load keymap. Loading default "
+	       "keymap instead.\n");
+
+    XkbGetRulesDflts(&dflts);
+
+    xkb = XkbCompileKeymapForDevice(dev, &dflts, 0);
+
+    XkbFreeRMLVOSet(&dflts, FALSE);
+
+    return xkb;
+}
+
+
 XkbDescPtr
 XkbCompileKeymap(DeviceIntPtr dev, XkbRMLVOSet * rmlvo)
 {
@@ -424,20 +477,34 @@ XkbCompileKeymap(DeviceIntPtr dev, XkbRMLVOSet * rmlvo)
 
     xkb = XkbCompileKeymapForDevice(dev, rmlvo, need);
 
-    if (!xkb) {
-        XkbRMLVOSet dflts;
+    return KeymapOrDefaults(dev, xkb);
+}
 
-        /* we didn't get what we really needed. And that will likely leave
-         * us with a keyboard that doesn't work. Use the defaults instead */
-        LogMessage(X_ERROR, "XKB: Failed to load keymap. Loading default "
-                   "keymap instead.\n");
+XkbDescPtr
+XkbCompileKeymapFromString(DeviceIntPtr dev,
+			   const char *keymap, int keymap_length)
+{
+    XkbDescPtr xkb;
+    unsigned int need, provided;
 
-        XkbGetRulesDflts(&dflts);
-
-        xkb = XkbCompileKeymapForDevice(dev, &dflts, 0);
-
-        XkbFreeRMLVOSet(&dflts, FALSE);
+    if (!dev || !keymap) {
+        LogMessage(X_ERROR, "XKB: No device or keymap specified\n");
+        return NULL;
     }
 
-    return xkb;
+    /* These are the components we really really need */
+    need = XkmSymbolsMask | XkmCompatMapMask | XkmTypesMask |
+        XkmKeyNamesMask | XkmVirtualModsMask;
+
+    provided =
+	XkbDDXLoadKeymapFromString(dev, keymap, keymap_length,
+				   XkmAllIndicesMask, need, &xkb);
+    if ((need & provided) != need) {
+	if (xkb) {
+	    XkbFreeKeyboard(xkb, 0, TRUE);
+	    xkb = NULL;
+	}
+    }
+
+    return KeymapOrDefaults(dev, xkb);
 }
