@@ -51,6 +51,7 @@
 #include <windowstr.h>
 #include <xf86Priv.h>
 #include <mipointrst.h>
+#include <sys/mman.h>
 
 #include "xwayland.h"
 #include "xwayland-private.h"
@@ -137,22 +138,17 @@ xwl_keyboard_control(DeviceIntPtr device, KeybdCtrl *ctrl)
 static int
 xwl_keyboard_proc(DeviceIntPtr device, int what)
 {
-    XkbRMLVOSet rmlvo;
+    InputInfoPtr pInfo = device->public.devicePrivate;
+    struct xwl_seat *xwl_seat = pInfo->private;
+    int len;
 
     switch (what) {
     case DEVICE_INIT:
 	device->public.on = FALSE;
-
-        /* FIXME: Get the keymap from wl_keyboard::keymap events, which
-         *        requires more X server API to set a keymap from a string
-         *        rather than RMLVO. */
-        rmlvo.rules = "evdev";
-        rmlvo.model = "evdev";
-        rmlvo.layout = "us";
-        rmlvo.variant = NULL;
-        rmlvo.options = NULL;
-
-        if (!InitKeyboardDeviceStruct(device, &rmlvo, NULL, xwl_keyboard_control))
+	len = strnlen(xwl_seat->keymap, xwl_seat->keymap_size);
+        if (!InitKeyboardDeviceStructFromString(device, xwl_seat->keymap,
+						len,
+						NULL, xwl_keyboard_control))
             return BadValue;
 
         return Success;
@@ -441,7 +437,12 @@ static void
 keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard,
 		       uint32_t format, int fd, uint32_t size)
 {
-    /* FIXME: Handle keymap */
+    struct xwl_seat *xwl_seat = data;
+
+    xwl_seat->keymap_size = size;
+    xwl_seat->keymap = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    if (xwl_seat->keymap == MAP_FAILED)
+	;	/* wah wah */
 
     close(fd);
 }
@@ -492,13 +493,30 @@ static const struct wl_keyboard_listener keyboard_listener = {
 };
 
 static void
+add_devices(void *data, struct wl_callback *callback, uint32_t time)
+{
+    struct xwl_seat *xwl_seat = data;
+
+    wl_callback_destroy(callback);
+
+    if (xwl_seat->wl_pointer)
+	xwl_seat->pointer = device_added(xwl_seat, "xwayland-pointer");
+    if (xwl_seat->wl_keyboard)
+	xwl_seat->keyboard = device_added(xwl_seat, "xwayland-keyboard");
+}
+
+static const struct wl_callback_listener add_devices_listener = {
+	add_devices
+};
+
+static void
 seat_handle_capabilities(void *data, struct wl_seat *seat,
 			 enum wl_seat_capability caps)
 {
 	struct xwl_seat *xwl_seat = data;
+	struct wl_callback *callback;
 
 	if (caps & WL_SEAT_CAPABILITY_POINTER) {
-	    xwl_seat->pointer = device_added(xwl_seat, "xwayland-pointer");
 	    xwl_seat->wl_pointer = wl_seat_get_pointer(seat);
 	    wl_pointer_add_listener(xwl_seat->wl_pointer,
 				    &pointer_listener, xwl_seat);
@@ -506,12 +524,19 @@ seat_handle_capabilities(void *data, struct wl_seat *seat,
 	}
 
 	if (caps & WL_SEAT_CAPABILITY_KEYBOARD) {
-	    xwl_seat->keyboard = device_added(xwl_seat, "xwayland-keyboard");
 	    xwl_seat->wl_keyboard = wl_seat_get_keyboard(seat);
 	    wl_keyboard_add_listener(xwl_seat->wl_keyboard,
 				     &keyboard_listener, xwl_seat);
+
 	}
         /* FIXME: Touch ... */
+
+	/* Add devices after we've received keymaps. */
+	if (caps) {
+	    callback = wl_display_sync(xwl_seat->xwl_screen->display);
+	    wl_callback_add_listener(callback,
+				     &add_devices_listener, xwl_seat);
+	}
 }
 
 static const struct wl_seat_listener seat_listener = {

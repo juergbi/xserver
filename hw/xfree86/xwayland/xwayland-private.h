@@ -99,7 +99,12 @@ struct xwl_seat {
     uint32_t			 pointer_enter_serial;
     struct xorg_list		 link;
     CursorPtr                    x_cursor;
+
+    size_t			 keymap_size;
+    char			*keymap;
+
 };
+
 
 struct xwl_screen *xwl_screen_get(ScreenPtr screen);
 
