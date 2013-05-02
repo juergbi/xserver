@@ -210,6 +210,7 @@ xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
     VisualID visual;
     WindowPtr window = xwl_window->window;
     ScreenPtr screen = window->drawable.pScreen;
+    uint32_t format;
     int i;
 
     visual = wVisual(window);
@@ -217,13 +218,21 @@ xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 	if (screen->visuals[i].vid == visual)
 	    break;
 
+    if (screen->visuals[i].nplanes == 32) {
+	format = WL_DRM_FORMAT_ARGB8888;
+	ErrorF("picking WL_DRM_FORMAT_ARGB8888\n");
+    } else {
+	format = WL_DRM_FORMAT_XRGB8888;
+	ErrorF("picking WL_DRM_FORMAT_XRGB8888\n");
+    }
+
     xwl_window->buffer =
       wl_drm_create_buffer(xwl_window->xwl_screen->drm,
 			   name,
 			   pixmap->drawable.width,
 			   pixmap->drawable.height,
 			   pixmap->devKind,
-			   WL_DRM_FORMAT_ARGB8888);
+			   format);
 
     return xwl_window->buffer ? Success : BadDrawable;
 }
