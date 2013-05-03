@@ -218,13 +218,10 @@ xwl_create_window_buffer_drm(struct xwl_window *xwl_window,
 	if (screen->visuals[i].vid == visual)
 	    break;
 
-    if (screen->visuals[i].nplanes == 32) {
+    if (screen->visuals[i].nplanes == 32)
 	format = WL_DRM_FORMAT_ARGB8888;
-	ErrorF("picking WL_DRM_FORMAT_ARGB8888\n");
-    } else {
+    else
 	format = WL_DRM_FORMAT_XRGB8888;
-	ErrorF("picking WL_DRM_FORMAT_XRGB8888\n");
-    }
 
     xwl_window->buffer =
       wl_drm_create_buffer(xwl_window->xwl_screen->drm,
