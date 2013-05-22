@@ -377,6 +377,12 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
     int i, val;
     const int divisor = 10;
 
+    if (time - xwl_seat->scroll_time > 2000) {
+	xwl_seat->vertical_scroll = 0;
+	xwl_seat->horizontal_scroll = 0;
+    }
+    xwl_seat->scroll_time = time;
+
     /* FIXME: Need to do proper smooth scrolling here! */
     switch (axis) {
     case WL_POINTER_AXIS_VERTICAL_SCROLL:

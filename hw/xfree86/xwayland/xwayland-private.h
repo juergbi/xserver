@@ -102,6 +102,7 @@ struct xwl_seat {
 
     wl_fixed_t			 horizontal_scroll;
     wl_fixed_t			 vertical_scroll;
+    uint32_t			 scroll_time;
 
     size_t			 keymap_size;
     char			*keymap;
