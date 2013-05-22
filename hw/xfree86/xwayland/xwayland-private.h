@@ -100,6 +100,9 @@ struct xwl_seat {
     struct xorg_list		 link;
     CursorPtr                    x_cursor;
 
+    wl_fixed_t			 horizontal_scroll;
+    wl_fixed_t			 vertical_scroll;
+
     size_t			 keymap_size;
     char			*keymap;
 

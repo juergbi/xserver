@@ -373,12 +373,16 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
 		    uint32_t time, uint32_t axis, wl_fixed_t value)
 {
     struct xwl_seat *xwl_seat = data;
-    int index;
-    int val = wl_fixed_to_int(value);
+    int index, count;
+    int i, val;
 
     /* FIXME: Need to do proper smooth scrolling here! */
     switch (axis) {
     case WL_POINTER_AXIS_VERTICAL_SCROLL:
+	xwl_seat->vertical_scroll += value;
+	val = wl_fixed_to_int(xwl_seat->vertical_scroll);
+	xwl_seat->vertical_scroll -= wl_fixed_from_int(val);
+
 	if (val <= -1)
             index = 4;
 	else if (val >= 1)
@@ -387,6 +391,10 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
             return;
 	break;
     case WL_POINTER_AXIS_HORIZONTAL_SCROLL:
+	xwl_seat->horizontal_scroll += value;
+	val = wl_fixed_to_int(xwl_seat->horizontal_scroll);
+	xwl_seat->horizontal_scroll -= wl_fixed_from_int(val);
+
 	if (val <= -1)
             index = 6;
 	else if (val >= 1)
@@ -398,8 +406,11 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
 	return;
     }
 
-    xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 1, 0, 0);
-    xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 0, 0, 0);
+    count = abs(val);
+    for (i = 0; i < count; i++) {
+	xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 1, 0, 0);
+	xf86PostButtonEvent(xwl_seat->pointer, TRUE, index, 0, 0, 0);
+    }
 }
 
 static const struct wl_pointer_listener pointer_listener = {
