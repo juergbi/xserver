@@ -375,11 +375,12 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
     struct xwl_seat *xwl_seat = data;
     int index, count;
     int i, val;
+    const int divisor = 10;
 
     /* FIXME: Need to do proper smooth scrolling here! */
     switch (axis) {
     case WL_POINTER_AXIS_VERTICAL_SCROLL:
-	xwl_seat->vertical_scroll += value;
+	xwl_seat->vertical_scroll += value / divisor;
 	val = wl_fixed_to_int(xwl_seat->vertical_scroll);
 	xwl_seat->vertical_scroll -= wl_fixed_from_int(val);
 
@@ -391,7 +392,7 @@ pointer_handle_axis(void *data, struct wl_pointer *pointer,
             return;
 	break;
     case WL_POINTER_AXIS_HORIZONTAL_SCROLL:
-	xwl_seat->horizontal_scroll += value;
+	xwl_seat->horizontal_scroll += value / divisor;
 	val = wl_fixed_to_int(xwl_seat->horizontal_scroll);
 	xwl_seat->horizontal_scroll -= wl_fixed_from_int(val);
 
